@@ -12,11 +12,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.Version;
-import lombok.Getter;
-import lombok.Setter;
 
-@Getter
-@Setter
+
+
 @MappedSuperclass
 public abstract class BaseEntity {
 
@@ -29,7 +27,55 @@ public abstract class BaseEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    @UpdateTimestamp
+    public UUID getId() {
+		return id;
+	}
+
+	public void setId(UUID id) {
+		this.id = id;
+	}
+
+	public OffsetDateTime getCreatedAt() {
+		return createdAt;
+	}
+
+	public void setCreatedAt(OffsetDateTime createdAt) {
+		this.createdAt = createdAt;
+	}
+
+	public OffsetDateTime getUpdatedAt() {
+		return updatedAt;
+	}
+
+	public void setUpdatedAt(OffsetDateTime updatedAt) {
+		this.updatedAt = updatedAt;
+	}
+
+	public UUID getCreatedBy() {
+		return createdBy;
+	}
+
+	public void setCreatedBy(UUID createdBy) {
+		this.createdBy = createdBy;
+	}
+
+	public UUID getUpdatedBy() {
+		return updatedBy;
+	}
+
+	public void setUpdatedBy(UUID updatedBy) {
+		this.updatedBy = updatedBy;
+	}
+
+	public Long getVersion() {
+		return version;
+	}
+
+	public void setVersion(Long version) {
+		this.version = version;
+	}
+
+	@UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
