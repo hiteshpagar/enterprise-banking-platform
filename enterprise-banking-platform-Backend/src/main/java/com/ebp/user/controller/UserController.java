@@ -21,6 +21,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
+import org.springframework.web.bind.annotation.RequestParam;
+
+import com.ebp.common.dto.PageResponse;
+import com.ebp.user.dto.UserSummaryResponse;
+
 @RestController
 @RequestMapping("/api/users")
 @Tag(
@@ -75,14 +80,30 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasAuthority('USER_VIEW')")
     @Operation(
-    	    summary = "Get All Users",
-    	    description = "Retrieve all users."
-    	)
-    public ResponseEntity<List<UserSummaryResponse>> getAllUsers() {
+            summary = "Get All Users",
+            description = "Retrieve users with pagination and sorting."
+    )
+    public ResponseEntity<PageResponse<UserSummaryResponse>> getAllUsers(
 
-        List<UserSummaryResponse> users = userService.getAllUsers();
+    		@RequestParam(defaultValue = "") String search,
+    		
+    		@RequestParam(defaultValue = "0") int page,
 
-        return ResponseEntity.ok(users);
+            @RequestParam(defaultValue = "10") int size,
+
+            @RequestParam(defaultValue = "username") String sortBy,
+
+            @RequestParam(defaultValue = "asc") String sortDirection) {
+
+        PageResponse<UserSummaryResponse> response =
+                userService.getAllUsers(
+                		search,
+                        page,
+                        size,
+                        sortBy,
+                        sortDirection);
+
+        return ResponseEntity.ok(response);
     }
     
     @PutMapping("/{id}")
