@@ -17,6 +17,13 @@ import com.ebp.user.exception.UserNotFoundException;
 import com.ebp.user.mapper.UserMapper;
 import com.ebp.user.repository.UserRepository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+
+import com.ebp.common.dto.PageResponse;
+
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -68,12 +75,38 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserSummaryResponse> getAllUsers() {
+    public PageResponse<UserSummaryResponse> getAllUsers(
+    		String search,
+            int page,
+            int size,
+            String sortBy,
+            String sortDirection) {
 
-        return userRepository.findAll()
-                .stream()
-                .map(userMapper::toSummary)
-                .toList();
+        Sort sort = sortDirection.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<User> users = userRepository.findAll(pageable);
+
+        PageResponse<UserSummaryResponse> response =
+                new PageResponse<>();
+
+        response.setContent(
+                users.getContent()
+                        .stream()
+                        .map(userMapper::toSummary)
+                        .toList());
+
+        response.setPage(users.getNumber());
+        response.setSize(users.getSize());
+        response.setTotalElements(users.getTotalElements());
+        response.setTotalPages(users.getTotalPages());
+        response.setFirst(users.isFirst());
+        response.setLast(users.isLast());
+
+        return response;
     }
 
     @Override
