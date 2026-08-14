@@ -18,6 +18,20 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+
+        <Stack.Screen
+          name="(bank)"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="access-denied"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </AuthProvider>
   );

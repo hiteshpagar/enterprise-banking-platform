@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import type { CurrentUserResponse } from "../types/auth";
 
 export interface LoginRequest {
   username: string;
@@ -17,4 +18,14 @@ export async function login(
     method: "POST",
     body: JSON.stringify(credentials),
   });
+}
+
+export async function getCurrentUser(): Promise<CurrentUserResponse> {
+  return apiRequest<CurrentUserResponse>(
+    "/auth/me",
+    {
+      method: "GET",
+    },
+    true
+  );
 }

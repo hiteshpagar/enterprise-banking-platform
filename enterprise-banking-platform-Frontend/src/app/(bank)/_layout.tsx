@@ -1,7 +1,7 @@
 import { Redirect, Stack } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 
-export default function CustomerLayout() {
+export default function BankLayout() {
   const {
     isAuthenticated,
     isLoading,
@@ -17,9 +17,9 @@ export default function CustomerLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  if (!isCustomerUser) {
-    if (isBankUser) {
-      return <Redirect href="/(bank)/dashboard" />;
+  if (!isBankUser) {
+    if (isCustomerUser) {
+      return <Redirect href="/(customer)/dashboard" />;
     }
 
     return <Redirect href="/access-denied" />;

@@ -1,6 +1,6 @@
 import {
-  getAccountById,
-  getAccounts,
+  getCurrentCustomerAccountById,
+  getCurrentCustomerAccounts,
 } from "../api/accounts";
 import type {
   Account,
@@ -11,11 +11,11 @@ import type {
 export async function fetchAccounts(
   params: AccountListParams = {}
 ): Promise<AccountPage> {
-  return getAccounts(params);
+  return getCurrentCustomerAccounts(params);
 }
 
 export async function fetchAccountDetails(
   id: string
 ): Promise<Account> {
-  return getAccountById(id);
+  return getCurrentCustomerAccountById(id);
 }

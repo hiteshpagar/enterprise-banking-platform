@@ -21,10 +21,12 @@ import com.ebp.account.dto.AccountSummaryResponse;
 import com.ebp.account.dto.CreateAccountRequest;
 import com.ebp.account.dto.UpdateAccountRequest;
 import com.ebp.account.service.AccountService;
+import com.ebp.security.userdetails.CustomUserDetails;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController
 @RequestMapping("/api/accounts")
@@ -45,6 +47,41 @@ public class AccountController {
             @Valid @RequestBody CreateAccountRequest request) {
 
         return accountService.createAccount(request);
+    }
+
+    @Operation(summary = "Get Account By ID")
+    @GetMapping("/me/{id}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public AccountResponse getCurrentCustomerAccountById(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        return accountService.getCustomerAccountById(
+                id,
+                principal.getUsername());
+    }
+
+    @Operation(summary = "Get Current Customer Accounts")
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public Page<AccountSummaryResponse> getCurrentCustomerAccounts(
+
+            @RequestParam(defaultValue = "0") int page,
+
+            @RequestParam(defaultValue = "10") int size,
+
+            @RequestParam(defaultValue = "accountNumber") String sortBy,
+
+            @RequestParam(required = false) String search,
+
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        return accountService.getCurrentCustomerAccounts(
+                page,
+                size,
+                sortBy,
+                search,
+                principal.getUsername());
     }
 
     @Operation(summary = "Get Account By ID")

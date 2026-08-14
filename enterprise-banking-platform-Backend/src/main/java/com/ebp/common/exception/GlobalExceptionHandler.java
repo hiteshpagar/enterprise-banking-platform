@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.ebp.user.exception.UserAlreadyExistsException;
 import com.ebp.user.exception.UserNotFoundException;
+import com.ebp.customer.exception.CustomerOnboardingEmailException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -89,6 +90,22 @@ public class GlobalExceptionHandler {
         error.setPath(request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(CustomerOnboardingEmailException.class)
+    public ResponseEntity<ApiError> handleCustomerOnboardingEmail(
+            CustomerOnboardingEmailException ex,
+            HttpServletRequest request) {
+
+        ApiError error = new ApiError();
+
+        error.setTimestamp(OffsetDateTime.now());
+        error.setStatus(HttpStatus.BAD_GATEWAY.value());
+        error.setError(HttpStatus.BAD_GATEWAY.getReasonPhrase());
+        error.setMessage(ex.getMessage());
+        error.setPath(request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
     }
 
     @ExceptionHandler(Exception.class)

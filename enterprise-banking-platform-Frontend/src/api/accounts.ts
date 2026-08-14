@@ -40,3 +40,27 @@ export async function getAccountById(id: string): Promise<Account> {
     true
   );
 }
+
+export async function getCurrentCustomerAccounts(
+  params: AccountListParams = {}
+): Promise<AccountPage> {
+  return apiRequest<AccountPage>(
+    `/accounts/me${toQueryString(params)}`,
+    {
+      method: "GET",
+    },
+    true
+  );
+}
+
+export async function getCurrentCustomerAccountById(
+  id: string
+): Promise<Account> {
+  return apiRequest<Account>(
+    `/accounts/me/${id}`,
+    {
+      method: "GET",
+    },
+    true
+  );
+}

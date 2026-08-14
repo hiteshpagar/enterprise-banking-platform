@@ -1,9 +1,12 @@
 package com.ebp.auth.controller;
 
+import com.ebp.auth.dto.CurrentUserResponse;
 import com.ebp.auth.dto.LoginRequest;
 import com.ebp.auth.dto.LoginResponse;
 import com.ebp.auth.service.AuthenticationService;
+import com.ebp.security.userdetails.CustomUserDetails;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,6 +41,24 @@ public class AuthenticationController {
             @Valid @RequestBody LoginRequest request) {
 
         LoginResponse response = authenticationService.login(request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/me")
+    @Operation(
+            summary = "Get authenticated user",
+            description = "Return the authenticated user's safe profile, roles, and permissions."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Authenticated user returned"),
+            @ApiResponse(responseCode = "401", description = "Authentication required")
+    })
+    public ResponseEntity<CurrentUserResponse> me(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        CurrentUserResponse response =
+                authenticationService.getCurrentUser(principal);
 
         return ResponseEntity.ok(response);
     }
