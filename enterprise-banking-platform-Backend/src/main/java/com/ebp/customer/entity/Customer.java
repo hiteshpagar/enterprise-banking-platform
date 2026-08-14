@@ -3,17 +3,25 @@ package com.ebp.customer.entity;
 import java.time.LocalDate;
 
 import com.ebp.common.persistence.entity.BaseEntity;
+import com.ebp.user.entity.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
 
 import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "customers", schema = "customer")
 public class Customer extends BaseEntity {
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
 
     @Column(name = "customer_number", nullable = false, unique = true, length = 20)
     private String customerNumber;
@@ -43,6 +51,14 @@ public class Customer extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private CustomerStatus status;
+
+	public User getUser() {
+		return user;
+	}
+
+	public void setUser(User user) {
+		this.user = user;
+	}
 
 	public String getCustomerNumber() {
 		return customerNumber;

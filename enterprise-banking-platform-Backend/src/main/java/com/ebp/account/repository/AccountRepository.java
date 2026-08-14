@@ -20,6 +20,11 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     Page<Account> findByCustomer(Customer customer, Pageable pageable);
 
+    Page<Account> findByCustomerAndAccountNumberContainingIgnoreCase(
+            Customer customer,
+            String accountNumber,
+            Pageable pageable);
+
     Page<Account> findByStatus(AccountStatus status, Pageable pageable);
 
     Page<Account> findByAccountNumberContainingIgnoreCase(

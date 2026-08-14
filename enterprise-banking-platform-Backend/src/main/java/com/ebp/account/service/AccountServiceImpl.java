@@ -21,6 +21,9 @@ import com.ebp.account.repository.AccountRepository;
 import com.ebp.customer.entity.Customer;
 import com.ebp.customer.exception.CustomerNotFoundException;
 import com.ebp.customer.repository.CustomerRepository;
+import com.ebp.user.entity.User;
+import com.ebp.user.exception.UserNotFoundException;
+import com.ebp.user.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 
@@ -30,15 +33,18 @@ public class AccountServiceImpl implements AccountService {
     private final AccountRepository accountRepository;
     private final CustomerRepository customerRepository;
     private final AccountMapper accountMapper;
+    private final UserRepository userRepository;
 
     public AccountServiceImpl(
             AccountRepository accountRepository,
             CustomerRepository customerRepository,
-            AccountMapper accountMapper) {
+            AccountMapper accountMapper,
+            UserRepository userRepository) {
 
         this.accountRepository = accountRepository;
         this.customerRepository = customerRepository;
         this.accountMapper = accountMapper;
+        this.userRepository = userRepository;
     }
 
     private String generateAccountNumber() {
@@ -81,6 +87,24 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     @Transactional(readOnly = true)
+    public AccountResponse getCustomerAccountById(
+            UUID id,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Account account = accountRepository.findById(id)
+                .filter(candidate ->
+                        candidate.getCustomer().getId().equals(customer.getId()))
+                .orElseThrow(() ->
+                        new AccountNotFoundException(
+                                "Account with ID '" + id + "' not found."));
+
+        return accountMapper.toResponse(account);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<AccountSummaryResponse> getAllAccounts(
             int page,
             int size,
@@ -97,6 +121,35 @@ public class AccountServiceImpl implements AccountService {
         } else {
             accounts = accountRepository
                     .findByAccountNumberContainingIgnoreCase(search, pageable);
+        }
+
+        return accounts.map(accountMapper::toSummary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AccountSummaryResponse> getCurrentCustomerAccounts(
+            int page,
+            int size,
+            String sortBy,
+            String search,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Pageable pageable =
+                PageRequest.of(page, size, Sort.by(sortBy).ascending());
+
+        Page<Account> accounts;
+
+        if (search == null || search.isBlank()) {
+            accounts = accountRepository.findByCustomer(customer, pageable);
+        } else {
+            accounts = accountRepository
+                    .findByCustomerAndAccountNumberContainingIgnoreCase(
+                            customer,
+                            search,
+                            pageable);
         }
 
         return accounts.map(accountMapper::toSummary);
@@ -129,5 +182,18 @@ public class AccountServiceImpl implements AccountService {
                                 "Account with ID '" + id + "' not found."));
 
         accountRepository.delete(account);
+    }
+
+    private Customer getCustomerForUsername(String username) {
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new UserNotFoundException(
+                                "User with username '" + username + "' not found."));
+
+        return customerRepository.findByUser(user)
+                .orElseThrow(() ->
+                        new CustomerNotFoundException(
+                                "Customer profile for authenticated user not found."));
     }
 }
