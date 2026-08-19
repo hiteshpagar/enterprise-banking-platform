@@ -1,21 +1,34 @@
 import {
+  getAccounts,
+  getAccountById,
+  createAccount,
   getCurrentCustomerAccountById,
   getCurrentCustomerAccounts,
 } from "../api/accounts";
+
 import type {
   Account,
   AccountListParams,
   AccountPage,
+  CreateAccountRequest,
 } from "../types/account";
 
 export async function fetchAccounts(
-  params: AccountListParams = {}
+  params: AccountListParams = {},
+  isCustomer = true,
 ): Promise<AccountPage> {
-  return getCurrentCustomerAccounts(params);
+  return isCustomer ? getCurrentCustomerAccounts(params) : getAccounts(params);
 }
 
 export async function fetchAccountDetails(
-  id: string
+  id: string,
+  isCustomer = true,
 ): Promise<Account> {
-  return getCurrentCustomerAccountById(id);
+  return isCustomer ? getCurrentCustomerAccountById(id) : getAccountById(id);
+}
+
+export async function openAccount(
+  request: CreateAccountRequest,
+): Promise<Account> {
+  return createAccount(request);
 }

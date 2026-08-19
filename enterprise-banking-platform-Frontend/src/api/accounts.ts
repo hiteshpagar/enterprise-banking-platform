@@ -3,6 +3,7 @@ import type {
   Account,
   AccountListParams,
   AccountPage,
+  CreateAccountRequest,
 } from "../types/account";
 
 function toQueryString(params: AccountListParams) {
@@ -60,6 +61,19 @@ export async function getCurrentCustomerAccountById(
     `/accounts/me/${id}`,
     {
       method: "GET",
+    },
+    true
+  );
+}
+
+export async function createAccount(
+  request: CreateAccountRequest
+): Promise<Account> {
+  return apiRequest<Account>(
+    "/accounts",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
     },
     true
   );

@@ -37,3 +37,10 @@ export interface AccountListParams {
   sortBy?: "accountNumber" | "accountType" | "balance" | "status" | "currency";
   search?: string;
 }
+
+export interface CreateAccountRequest {
+  customerId: string;
+  accountType: AccountType;
+  currency: string;
+  openingBalance: number;
+}

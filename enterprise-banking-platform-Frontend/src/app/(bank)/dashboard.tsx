@@ -3,20 +3,14 @@ import { router, type Href } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 
 export default function BankDashboard() {
-  const {
-    user,
-    logout,
-    hasPermission,
-  } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Bank / Staff</Text>
         <Text style={styles.title}>Bank Dashboard</Text>
-        <Text style={styles.subtitle}>
-          Signed in as {user?.username}
-        </Text>
+        <Text style={styles.subtitle}>Signed in as {user?.username}</Text>
       </View>
 
       <View style={styles.panel}>
@@ -30,14 +24,26 @@ export default function BankDashboard() {
         <Text style={styles.sectionLabel}>Available Actions</Text>
 
         {hasPermission("ACCOUNT_CREATE") ? (
-          <Text style={styles.actionText}>Create Account</Text>
+          <Pressable
+            onPress={() => router.push("/(bank)/accounts/new" as Href)}
+            style={styles.actionButton}
+          >
+            <Text style={styles.actionButtonText}>Create Account</Text>
+          </Pressable>
+        ) : null}
+
+        {hasPermission("ACCOUNT_VIEW") ? (
+          <Pressable
+            onPress={() => router.push("/accounts" as Href)}
+            style={styles.actionButton}
+          >
+            <Text style={styles.actionButtonText}>View Accounts</Text>
+          </Pressable>
         ) : null}
 
         {hasPermission("CUSTOMER_CREATE") ? (
           <Pressable
-            onPress={() =>
-              router.push("/customers/new" as Href)
-            }
+            onPress={() => router.push("/customers/new" as Href)}
             style={styles.actionButton}
           >
             <Text style={styles.actionButtonText}>Create Customer</Text>
@@ -48,7 +54,8 @@ export default function BankDashboard() {
           <Text style={styles.actionText}>View Users</Text>
         ) : null}
 
-        {!hasPermission("ACCOUNT_CREATE") &&
+        {!hasPermission("ACCOUNT_VIEW") &&
+        !hasPermission("ACCOUNT_CREATE") &&
         !hasPermission("CUSTOMER_CREATE") &&
         !hasPermission("USER_VIEW") ? (
           <Text style={styles.mutedText}>

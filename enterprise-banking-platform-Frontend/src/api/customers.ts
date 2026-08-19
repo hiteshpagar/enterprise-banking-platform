@@ -2,6 +2,7 @@ import { apiRequest } from "./client";
 import type {
   CreateCustomerRequest,
   Customer,
+  CustomerPage,
 } from "../types/customer";
 
 export async function createCustomer(
@@ -12,6 +13,33 @@ export async function createCustomer(
     {
       method: "POST",
       body: JSON.stringify(request),
+    },
+    true
+  );
+}
+
+export async function getCustomers(
+  params: {
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    search?: string;
+  } = {}
+): Promise<CustomerPage> {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") {
+      searchParams.append(key, String(value));
+    }
+  });
+
+  const query = searchParams.toString();
+
+  return apiRequest<CustomerPage>(
+    `/customers${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
     },
     true
   );
