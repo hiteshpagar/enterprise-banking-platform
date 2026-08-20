@@ -12,8 +12,9 @@ public class CreateTransferRequest {
     @NotNull(message = "Source account ID is required")
     private UUID sourceAccountId;
 
-    @NotNull(message = "Destination account ID is required")
     private UUID destinationAccountId;
+
+    private String destinationAccountNumber;
 
     @NotNull(message = "Amount is required")
     @DecimalMin(
@@ -42,6 +43,14 @@ public class CreateTransferRequest {
 
     public void setDestinationAccountId(UUID destinationAccountId) {
         this.destinationAccountId = destinationAccountId;
+    }
+
+    public String getDestinationAccountNumber() {
+        return destinationAccountNumber;
+    }
+
+    public void setDestinationAccountNumber(String destinationAccountNumber) {
+        this.destinationAccountNumber = destinationAccountNumber;
     }
 
     public BigDecimal getAmount() {

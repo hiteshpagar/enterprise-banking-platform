@@ -98,7 +98,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
         Beneficiary savedBeneficiary =
                 beneficiaryRepository.save(beneficiary);
 
-        return beneficiaryMapper.toResponse(
+        return mapToResponse(
                 savedBeneficiary);
     }
 
@@ -115,7 +115,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                                                 + id
                                                 + "' not found."));
 
-        return beneficiaryMapper.toResponse(
+        return mapToResponse(
                 beneficiary);
     }
 
@@ -144,7 +144,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                 .findByCustomerId(
                         customerId,
                         pageable)
-                .map(beneficiaryMapper::toResponse);
+                .map(this::mapToResponse);
     }
 
     @Override
@@ -172,7 +172,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                 beneficiaryRepository.save(
                         beneficiary);
 
-        return beneficiaryMapper.toResponse(
+        return mapToResponse(
                 updatedBeneficiary);
     }
 
@@ -210,7 +210,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                 .findByCustomerId(
                         customer.getId(),
                         pageable)
-                .map(beneficiaryMapper::toResponse);
+                .map(this::mapToResponse);
     }
 
     @Override
@@ -221,23 +221,30 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
 
         Customer customer = getCustomerForUsername(username);
 
-        Account account = accountRepository
-                .findById(request.getAccountId())
-                .orElseThrow(() ->
-                        new AccountNotFoundException(
-                                "Account with ID '"
-                                        + request.getAccountId()
-                                        + "' not found."));
+        Account account = null;
+        if (request.getAccountNumber() != null && !request.getAccountNumber().isBlank()) {
+            account = accountRepository
+                    .findByAccountNumber(request.getAccountNumber().trim())
+                    .orElse(null);
+        }
 
-        if (!account.getCustomer().getId().equals(customer.getId())) {
-            throw new IllegalArgumentException(
-                    "Account does not belong to the authenticated customer.");
+        if (account == null && request.getAccountId() != null) {
+            account = accountRepository
+                    .findById(request.getAccountId())
+                    .orElse(null);
+        }
+
+        if (account == null) {
+            throw new AccountNotFoundException(
+                    "Beneficiary account '"
+                            + request.getAccountNumber()
+                            + "' was not found in the bank system.");
         }
 
         if (beneficiaryRepository
                 .existsByCustomerIdAndAccountId(
                         customer.getId(),
-                        request.getAccountId())) {
+                        account.getId())) {
 
             throw new BeneficiaryAlreadyExistsException(
                     "Beneficiary already exists for this customer and account.");
@@ -248,6 +255,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
 
         beneficiary.setCustomer(customer);
         beneficiary.setAccount(account);
+        beneficiary.setAccountNumber(account.getAccountNumber());
         beneficiary.setStatus(BeneficiaryStatus.ACTIVE);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -258,7 +266,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
         Beneficiary savedBeneficiary =
                 beneficiaryRepository.save(beneficiary);
 
-        return beneficiaryMapper.toResponse(
+        return mapToResponse(
                 savedBeneficiary);
     }
 
@@ -279,7 +287,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                                                 + id
                                                 + "' not found."));
 
-        return beneficiaryMapper.toResponse(
+        return mapToResponse(
                 beneficiary);
     }
 
@@ -312,7 +320,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                 beneficiaryRepository.save(
                         beneficiary);
 
-        return beneficiaryMapper.toResponse(
+        return mapToResponse(
                 updatedBeneficiary);
     }
 
@@ -334,6 +342,17 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                                                 + "' not found."));
 
         beneficiaryRepository.delete(beneficiary);
+    }
+
+    private BeneficiaryResponse mapToResponse(Beneficiary beneficiary) {
+        BeneficiaryResponse response = beneficiaryMapper.toResponse(beneficiary);
+
+        if (beneficiary.getAccountNumber() != null && !beneficiary.getAccountNumber().isBlank()) {
+            accountRepository.findByAccountNumber(beneficiary.getAccountNumber().trim())
+                    .ifPresent(destAccount -> response.setAccountId(destAccount.getId()));
+        }
+
+        return response;
     }
 
     private Customer getCustomerForUsername(String username) {

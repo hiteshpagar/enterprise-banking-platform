@@ -25,8 +25,22 @@ export default function CustomerDashboard() {
         <Text style={styles.secondaryButtonText}>Manage Beneficiaries</Text>
       </Pressable>
 
-      <Pressable onPress={logout} style={styles.button}>
-        <Text style={styles.buttonText}>Logout</Text>
+      <Pressable
+        onPress={() => router.push("/(customer)/fund-transfer" as Href)}
+        style={styles.transferButton}
+      >
+        <Text style={styles.buttonText}>Fund Transfer</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push("/(customer)/transactions" as Href)}
+        style={styles.historyButton}
+      >
+        <Text style={styles.buttonText}>Transaction History</Text>
+      </Pressable>
+
+      <Pressable onPress={logout} style={styles.logoutButton}>
+        <Text style={styles.logoutButtonText}>Logout</Text>
       </Pressable>
     </View>
   );
@@ -52,43 +66,75 @@ const styles = StyleSheet.create({
 
   primaryButton: {
     marginTop: 30,
-    paddingHorizontal: 30,
+    width: "100%",
+    maxWidth: 320,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: "#1D4ED8",
+    alignItems: "center",
   },
 
   primaryButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
   secondaryButton: {
-    marginTop: 14,
-    paddingHorizontal: 30,
+    marginTop: 12,
+    width: "100%",
+    maxWidth: 320,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: "#0F766E",
+    alignItems: "center",
   },
 
   secondaryButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
-  button: {
-    marginTop: 14,
-    paddingHorizontal: 30,
+  transferButton: {
+    marginTop: 12,
+    width: "100%",
+    maxWidth: 320,
     paddingVertical: 14,
-    borderRadius: 8,
-    backgroundColor: "#111827",
+    borderRadius: 10,
+    backgroundColor: "#4F46E5",
+    alignItems: "center",
+  },
+
+  historyButton: {
+    marginTop: 12,
+    width: "100%",
+    maxWidth: 320,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
   },
 
   buttonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+
+  logoutButton: {
+    marginTop: 24,
+    width: "100%",
+    maxWidth: 320,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#111827",
+    alignItems: "center",
+  },
+
+  logoutButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

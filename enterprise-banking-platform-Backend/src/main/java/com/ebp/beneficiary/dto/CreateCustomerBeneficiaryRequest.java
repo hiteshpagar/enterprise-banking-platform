@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Size;
 
 public class CreateCustomerBeneficiaryRequest {
 
-    @NotNull(message = "Account ID is required")
     private UUID accountId;
 
     @NotBlank(message = "Beneficiary name is required")
