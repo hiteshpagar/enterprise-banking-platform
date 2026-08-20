@@ -57,18 +57,39 @@ public class TransferServiceImpl implements TransferService {
     public TransferResponse createTransfer(
             CreateTransferRequest request) {
 
-        if (request.getSourceAccountId()
-                .equals(request.getDestinationAccountId())) {
-
-            throw new IllegalArgumentException(
-                    "Source and destination accounts must be different.");
-        }
-
         Account sourceAccount =
                 getActiveAccount(request.getSourceAccountId());
 
-        Account destinationAccount =
-                getActiveAccount(request.getDestinationAccountId());
+        Account destinationAccount = null;
+
+        if (request.getDestinationAccountNumber() != null
+                && !request.getDestinationAccountNumber().isBlank()) {
+
+            destinationAccount = accountRepository
+                    .findByAccountNumber(request.getDestinationAccountNumber().trim())
+                    .orElse(null);
+        }
+
+        if (destinationAccount == null && request.getDestinationAccountId() != null) {
+            destinationAccount = accountRepository
+                    .findById(request.getDestinationAccountId())
+                    .orElse(null);
+        }
+
+        if (destinationAccount == null) {
+            throw new IllegalArgumentException(
+                    "Destination account not found.");
+        }
+
+        if (destinationAccount.getStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException(
+                    "Destination account is not active.");
+        }
+
+        if (sourceAccount.getId().equals(destinationAccount.getId())) {
+            throw new IllegalArgumentException(
+                    "Source and destination accounts must be different.");
+        }
 
         if (!sourceAccount.getCurrency()
                 .equals(destinationAccount.getCurrency())) {
