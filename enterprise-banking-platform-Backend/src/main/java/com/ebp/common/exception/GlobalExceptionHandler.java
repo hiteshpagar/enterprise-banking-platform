@@ -12,9 +12,13 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.ebp.account.exception.AccountNotFoundException;
+import com.ebp.beneficiary.exception.BeneficiaryAlreadyExistsException;
+import com.ebp.beneficiary.exception.BeneficiaryNotFoundException;
+import com.ebp.customer.exception.CustomerNotFoundException;
+import com.ebp.customer.exception.CustomerOnboardingEmailException;
 import com.ebp.user.exception.UserAlreadyExistsException;
 import com.ebp.user.exception.UserNotFoundException;
-import com.ebp.customer.exception.CustomerOnboardingEmailException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -51,6 +55,86 @@ public class GlobalExceptionHandler {
         error.setPath(request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(BeneficiaryNotFoundException.class)
+    public ResponseEntity<ApiError> handleBeneficiaryNotFound(
+            BeneficiaryNotFoundException ex,
+            HttpServletRequest request) {
+
+        ApiError error = new ApiError();
+
+        error.setTimestamp(OffsetDateTime.now());
+        error.setStatus(HttpStatus.NOT_FOUND.value());
+        error.setError(HttpStatus.NOT_FOUND.getReasonPhrase());
+        error.setMessage(ex.getMessage());
+        error.setPath(request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(BeneficiaryAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleBeneficiaryAlreadyExists(
+            BeneficiaryAlreadyExistsException ex,
+            HttpServletRequest request) {
+
+        ApiError error = new ApiError();
+
+        error.setTimestamp(OffsetDateTime.now());
+        error.setStatus(HttpStatus.CONFLICT.value());
+        error.setError(HttpStatus.CONFLICT.getReasonPhrase());
+        error.setMessage(ex.getMessage());
+        error.setPath(request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(AccountNotFoundException.class)
+    public ResponseEntity<ApiError> handleAccountNotFound(
+            AccountNotFoundException ex,
+            HttpServletRequest request) {
+
+        ApiError error = new ApiError();
+
+        error.setTimestamp(OffsetDateTime.now());
+        error.setStatus(HttpStatus.NOT_FOUND.value());
+        error.setError(HttpStatus.NOT_FOUND.getReasonPhrase());
+        error.setMessage(ex.getMessage());
+        error.setPath(request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(CustomerNotFoundException.class)
+    public ResponseEntity<ApiError> handleCustomerNotFound(
+            CustomerNotFoundException ex,
+            HttpServletRequest request) {
+
+        ApiError error = new ApiError();
+
+        error.setTimestamp(OffsetDateTime.now());
+        error.setStatus(HttpStatus.NOT_FOUND.value());
+        error.setError(HttpStatus.NOT_FOUND.getReasonPhrase());
+        error.setMessage(ex.getMessage());
+        error.setPath(request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleIllegalArgument(
+            IllegalArgumentException ex,
+            HttpServletRequest request) {
+
+        ApiError error = new ApiError();
+
+        error.setTimestamp(OffsetDateTime.now());
+        error.setStatus(HttpStatus.BAD_REQUEST.value());
+        error.setError(HttpStatus.BAD_REQUEST.getReasonPhrase());
+        error.setMessage(ex.getMessage());
+        error.setPath(request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

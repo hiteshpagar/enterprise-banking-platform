@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import com.ebp.beneficiary.dto.BeneficiaryResponse;
 import com.ebp.beneficiary.dto.CreateBeneficiaryRequest;
+import com.ebp.beneficiary.dto.CreateCustomerBeneficiaryRequest;
 import com.ebp.beneficiary.dto.UpdateBeneficiaryRequest;
 import com.ebp.beneficiary.entity.Beneficiary;
 
@@ -12,6 +13,23 @@ public class BeneficiaryMapper {
 
     public Beneficiary toEntity(
             CreateBeneficiaryRequest request) {
+
+        Beneficiary beneficiary = new Beneficiary();
+
+        beneficiary.setBeneficiaryName(
+                request.getBeneficiaryName());
+
+        beneficiary.setBankName(
+                request.getBankName());
+
+        beneficiary.setAccountNumber(
+                request.getAccountNumber());
+
+        return beneficiary;
+    }
+
+    public Beneficiary toEntity(
+            CreateCustomerBeneficiaryRequest request) {
 
         Beneficiary beneficiary = new Beneficiary();
 

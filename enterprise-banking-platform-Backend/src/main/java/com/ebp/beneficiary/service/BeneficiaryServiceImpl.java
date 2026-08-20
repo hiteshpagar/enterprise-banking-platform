@@ -11,9 +11,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ebp.account.entity.Account;
+import com.ebp.account.exception.AccountNotFoundException;
 import com.ebp.account.repository.AccountRepository;
 import com.ebp.beneficiary.dto.BeneficiaryResponse;
 import com.ebp.beneficiary.dto.CreateBeneficiaryRequest;
+import com.ebp.beneficiary.dto.CreateCustomerBeneficiaryRequest;
 import com.ebp.beneficiary.dto.UpdateBeneficiaryRequest;
 import com.ebp.beneficiary.entity.Beneficiary;
 import com.ebp.beneficiary.entity.BeneficiaryStatus;
@@ -22,7 +24,11 @@ import com.ebp.beneficiary.exception.BeneficiaryNotFoundException;
 import com.ebp.beneficiary.mapper.BeneficiaryMapper;
 import com.ebp.beneficiary.repository.BeneficiaryRepository;
 import com.ebp.customer.entity.Customer;
+import com.ebp.customer.exception.CustomerNotFoundException;
 import com.ebp.customer.repository.CustomerRepository;
+import com.ebp.user.entity.User;
+import com.ebp.user.exception.UserNotFoundException;
+import com.ebp.user.repository.UserRepository;
 
 @Service
 public class BeneficiaryServiceImpl implements BeneficiaryService {
@@ -31,17 +37,20 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
     private final CustomerRepository customerRepository;
     private final AccountRepository accountRepository;
     private final BeneficiaryMapper beneficiaryMapper;
+    private final UserRepository userRepository;
 
     public BeneficiaryServiceImpl(
             BeneficiaryRepository beneficiaryRepository,
             CustomerRepository customerRepository,
             AccountRepository accountRepository,
-            BeneficiaryMapper beneficiaryMapper) {
+            BeneficiaryMapper beneficiaryMapper,
+            UserRepository userRepository) {
 
         this.beneficiaryRepository = beneficiaryRepository;
         this.customerRepository = customerRepository;
         this.accountRepository = accountRepository;
         this.beneficiaryMapper = beneficiaryMapper;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -180,5 +189,163 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                                                 + "' not found."));
 
         beneficiaryRepository.delete(beneficiary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BeneficiaryResponse> getCurrentCustomerBeneficiaries(
+            int page,
+            int size,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by("createdAt").descending());
+
+        return beneficiaryRepository
+                .findByCustomerId(
+                        customer.getId(),
+                        pageable)
+                .map(beneficiaryMapper::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public BeneficiaryResponse createCustomerBeneficiary(
+            CreateCustomerBeneficiaryRequest request,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Account account = accountRepository
+                .findById(request.getAccountId())
+                .orElseThrow(() ->
+                        new AccountNotFoundException(
+                                "Account with ID '"
+                                        + request.getAccountId()
+                                        + "' not found."));
+
+        if (!account.getCustomer().getId().equals(customer.getId())) {
+            throw new IllegalArgumentException(
+                    "Account does not belong to the authenticated customer.");
+        }
+
+        if (beneficiaryRepository
+                .existsByCustomerIdAndAccountId(
+                        customer.getId(),
+                        request.getAccountId())) {
+
+            throw new BeneficiaryAlreadyExistsException(
+                    "Beneficiary already exists for this customer and account.");
+        }
+
+        Beneficiary beneficiary =
+                beneficiaryMapper.toEntity(request);
+
+        beneficiary.setCustomer(customer);
+        beneficiary.setAccount(account);
+        beneficiary.setStatus(BeneficiaryStatus.ACTIVE);
+
+        OffsetDateTime now = OffsetDateTime.now();
+
+        beneficiary.setCreatedAt(now);
+        beneficiary.setUpdatedAt(now);
+
+        Beneficiary savedBeneficiary =
+                beneficiaryRepository.save(beneficiary);
+
+        return beneficiaryMapper.toResponse(
+                savedBeneficiary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BeneficiaryResponse getCustomerBeneficiaryById(
+            UUID id,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Beneficiary beneficiary =
+                beneficiaryRepository.findById(id)
+                        .filter(b -> b.getCustomer().getId().equals(customer.getId()))
+                        .orElseThrow(() ->
+                                new BeneficiaryNotFoundException(
+                                        "Beneficiary with ID '"
+                                                + id
+                                                + "' not found."));
+
+        return beneficiaryMapper.toResponse(
+                beneficiary);
+    }
+
+    @Override
+    @Transactional
+    public BeneficiaryResponse updateCustomerBeneficiary(
+            UUID id,
+            UpdateBeneficiaryRequest request,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Beneficiary beneficiary =
+                beneficiaryRepository.findById(id)
+                        .filter(b -> b.getCustomer().getId().equals(customer.getId()))
+                        .orElseThrow(() ->
+                                new BeneficiaryNotFoundException(
+                                        "Beneficiary with ID '"
+                                                + id
+                                                + "' not found."));
+
+        beneficiaryMapper.updateEntity(
+                beneficiary,
+                request);
+
+        beneficiary.setUpdatedAt(
+                OffsetDateTime.now());
+
+        Beneficiary updatedBeneficiary =
+                beneficiaryRepository.save(
+                        beneficiary);
+
+        return beneficiaryMapper.toResponse(
+                updatedBeneficiary);
+    }
+
+    @Override
+    @Transactional
+    public void deleteCustomerBeneficiary(
+            UUID id,
+            String username) {
+
+        Customer customer = getCustomerForUsername(username);
+
+        Beneficiary beneficiary =
+                beneficiaryRepository.findById(id)
+                        .filter(b -> b.getCustomer().getId().equals(customer.getId()))
+                        .orElseThrow(() ->
+                                new BeneficiaryNotFoundException(
+                                        "Beneficiary with ID '"
+                                                + id
+                                                + "' not found."));
+
+        beneficiaryRepository.delete(beneficiary);
+    }
+
+    private Customer getCustomerForUsername(String username) {
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new UserNotFoundException(
+                                "User with username '" + username + "' not found."));
+
+        return customerRepository.findByUser(user)
+                .orElseThrow(() ->
+                        new CustomerNotFoundException(
+                                "Customer profile for authenticated user not found."));
     }
 }

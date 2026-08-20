@@ -18,6 +18,13 @@ export default function CustomerDashboard() {
         <Text style={styles.primaryButtonText}>View Accounts</Text>
       </Pressable>
 
+      <Pressable
+        onPress={() => router.push("/(customer)/beneficiaries" as Href)}
+        style={styles.secondaryButton}
+      >
+        <Text style={styles.secondaryButtonText}>Manage Beneficiaries</Text>
+      </Pressable>
+
       <Pressable onPress={logout} style={styles.button}>
         <Text style={styles.buttonText}>Logout</Text>
       </Pressable>
@@ -52,6 +59,20 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  secondaryButton: {
+    marginTop: 14,
+    paddingHorizontal: 30,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: "#0F766E",
+  },
+
+  secondaryButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
