@@ -4,6 +4,7 @@ export interface AuthUser {
   email: string;
   roles: string[];
   permissions: string[];
+  requiresCredentialChange: boolean;
 }
 
 export interface CurrentUserResponse extends AuthUser {}

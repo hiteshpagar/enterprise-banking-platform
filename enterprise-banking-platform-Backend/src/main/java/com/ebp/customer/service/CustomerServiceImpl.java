@@ -108,6 +108,7 @@ public class CustomerServiceImpl implements CustomerService {
         user.setAccountNonLocked(true);
         user.setAccountNonExpired(true);
         user.setCredentialsNonExpired(true);
+        user.setMustChangeCredentials(true);
 
         User savedUser = userRepository.save(user);
 

@@ -46,6 +46,7 @@ interface AuthContextType {
   tokenType: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
+  requiresCredentialChange: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -179,6 +180,8 @@ export function AuthProvider({
   const isBankUser =
     hasAnyRole(BANK_STAFF_ROLES) ||
     hasAnyPermission(BANK_STAFF_PERMISSIONS);
+  const requiresCredentialChange =
+    user?.requiresCredentialChange ?? false;
 
   return (
     <AuthContext.Provider
@@ -187,6 +190,7 @@ export function AuthProvider({
         tokenType,
         user,
         isAuthenticated: !!accessToken && !!user,
+        requiresCredentialChange,
         isLoading,
         login,
         logout,

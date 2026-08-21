@@ -8,5 +8,6 @@ public record CurrentUserResponse(
         String username,
         String email,
         List<String> roles,
-        List<String> permissions) {
+        List<String> permissions,
+        boolean requiresCredentialChange) {
 }

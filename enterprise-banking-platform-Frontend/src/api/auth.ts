@@ -9,6 +9,13 @@ export interface LoginRequest {
 export interface LoginResponse {
   accessToken: string;
   tokenType: string;
+  requiresCredentialChange: boolean;
+}
+
+export interface ChangeCredentialsRequest {
+  newUsername: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 export async function login(
@@ -25,6 +32,19 @@ export async function getCurrentUser(): Promise<CurrentUserResponse> {
     "/auth/me",
     {
       method: "GET",
+    },
+    true
+  );
+}
+
+export async function changeCredentials(
+  data: ChangeCredentialsRequest
+): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(
+    "/auth/change-credentials",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
     },
     true
   );
