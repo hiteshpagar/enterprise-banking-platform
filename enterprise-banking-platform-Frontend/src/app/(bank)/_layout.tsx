@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function BankLayout() {
   const {
     isAuthenticated,
+    requiresCredentialChange,
     isLoading,
     isBankUser,
     isCustomerUser,
@@ -15,6 +16,10 @@ export default function BankLayout() {
 
   if (!isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
+  }
+
+  if (requiresCredentialChange) {
+    return <Redirect href="/(auth)/change-credentials" />;
   }
 
   if (!isBankUser) {

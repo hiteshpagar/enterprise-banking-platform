@@ -1,5 +1,8 @@
 package com.ebp.auth.controller;
 
+import java.util.Map;
+
+import com.ebp.auth.dto.ChangeCredentialsRequest;
 import com.ebp.auth.dto.CurrentUserResponse;
 import com.ebp.auth.dto.LoginRequest;
 import com.ebp.auth.dto.LoginResponse;
@@ -61,5 +64,24 @@ public class AuthenticationController {
                 authenticationService.getCurrentUser(principal);
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/change-credentials")
+    @Operation(
+            summary = "Change credentials",
+            description = "Allows an authenticated user who is required to change credentials to set a new username and password."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Credentials successfully updated"),
+            @ApiResponse(responseCode = "400", description = "Validation error or password mismatch"),
+            @ApiResponse(responseCode = "409", description = "Username already taken")
+    })
+    public ResponseEntity<Map<String, String>> changeCredentials(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @Valid @RequestBody ChangeCredentialsRequest request) {
+
+        authenticationService.changeCredentials(principal, request);
+
+        return ResponseEntity.ok(Map.of("message", "Credentials updated successfully."));
     }
 }

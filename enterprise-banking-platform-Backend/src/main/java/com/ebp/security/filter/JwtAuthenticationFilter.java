@@ -84,6 +84,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
+        // Enforce credential change constraint for authenticated users
+        if (SecurityContextHolder.getContext().getAuthentication() != null
+                && SecurityContextHolder.getContext().getAuthentication().getPrincipal() instanceof com.ebp.security.userdetails.CustomUserDetails customUserDetails) {
+
+            if (Boolean.TRUE.equals(customUserDetails.getUser().getMustChangeCredentials())) {
+                String path = request.getRequestURI();
+                boolean isAllowedPath = path.equals("/api/auth/change-credentials")
+                        || path.equals("/api/auth/me")
+                        || path.equals("/api/auth/login")
+                        || path.startsWith("/v3/api-docs")
+                        || path.startsWith("/swagger-ui");
+
+                if (!isAllowedPath) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write(
+                            "{\"timestamp\":\"" + java.time.OffsetDateTime.now() + "\"," +
+                            "\"status\":403," +
+                            "\"error\":\"Forbidden\"," +
+                            "\"message\":\"Credential change required. Please set new credentials before proceeding.\"," +
+                            "\"path\":\"" + path + "\"}"
+                    );
+                    return;
+                }
+            }
+        }
+
         // Continue filter chain
         filterChain.doFilter(request, response);
     }

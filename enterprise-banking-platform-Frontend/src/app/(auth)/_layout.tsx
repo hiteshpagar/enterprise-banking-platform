@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function AuthLayout() {
   const {
     isAuthenticated,
+    requiresCredentialChange,
     isLoading,
     isBankUser,
     isCustomerUser,
@@ -13,15 +14,16 @@ export default function AuthLayout() {
     return null;
   }
 
-  if (isAuthenticated && isBankUser) {
-    return <Redirect href="/(bank)/dashboard" />;
-  }
+  // If user is authenticated and DOES NOT require credential change, send them to their dashboard
+  if (isAuthenticated && !requiresCredentialChange) {
+    if (isBankUser) {
+      return <Redirect href="/(bank)/dashboard" />;
+    }
 
-  if (isAuthenticated && isCustomerUser) {
-    return <Redirect href="/(customer)/dashboard" />;
-  }
+    if (isCustomerUser) {
+      return <Redirect href="/(customer)/dashboard" />;
+    }
 
-  if (isAuthenticated) {
     return <Redirect href="/access-denied" />;
   }
 

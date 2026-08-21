@@ -74,6 +74,14 @@ public class User extends BaseEntity {
 		this.credentialsNonExpired = credentialsNonExpired;
 	}
 
+	public Boolean getMustChangeCredentials() {
+		return mustChangeCredentials;
+	}
+
+	public void setMustChangeCredentials(Boolean mustChangeCredentials) {
+		this.mustChangeCredentials = mustChangeCredentials;
+	}
+
 	public OffsetDateTime getLastLogin() {
 		return lastLogin;
 	}
@@ -102,6 +110,9 @@ public class User extends BaseEntity {
 
     @Column(name = "credentials_non_expired", nullable = false)
     private Boolean credentialsNonExpired = true;
+
+    @Column(name = "must_change_credentials", nullable = false)
+    private Boolean mustChangeCredentials = false;
 
     @Column(name = "last_login")
     private OffsetDateTime lastLogin;

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Index() {
   const {
     isAuthenticated,
+    requiresCredentialChange,
     isLoading,
     isBankUser,
     isCustomerUser,
@@ -11,6 +12,10 @@ export default function Index() {
 
   if (isLoading) {
     return null;
+  }
+
+  if (isAuthenticated && requiresCredentialChange) {
+    return <Redirect href="/(auth)/change-credentials" />;
   }
 
   if (isAuthenticated && isBankUser) {
