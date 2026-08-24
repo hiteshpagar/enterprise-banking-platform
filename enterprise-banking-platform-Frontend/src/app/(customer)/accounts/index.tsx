@@ -1,160 +1,132 @@
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  ActivityIndicator,
+} from "react-native";
 import { router, type Href } from "expo-router";
-import { AccountList } from "../../../components/accounts/AccountList";
-import { fetchAccounts } from "../../../services/accountService";
-import type {
-  AccountPage,
-  AccountSummary,
-} from "../../../types/account";
-
-const PAGE_SIZE = 10;
+import { Ionicons } from "@expo/vector-icons";
+import { fetchAccounts } from "@/services/accountService";
+import type { AccountSummary } from "@/types/account";
+import { Colors } from "@/constants/theme";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
+import { BottomNavBar } from "@/components/common/BottomNavBar";
 
 export default function AccountsScreen() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
-  const [pageInfo, setPageInfo] = useState<AccountPage | null>(null);
   const [search, setSearch] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
-  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const loadAccounts = useCallback(
-    async (page: number, mode: "replace" | "append") => {
-      setError("");
-
-      if (mode === "replace") {
-        setIsLoading(true);
-      } else {
-        setIsLoadingMore(true);
-      }
-
-      try {
-        const response = await fetchAccounts({
-          page,
-          size: PAGE_SIZE,
-          sortBy: "accountNumber",
-          search: submittedSearch.trim(),
-        });
-
-        setPageInfo(response);
-        setAccounts((currentAccounts) =>
-          mode === "append"
-            ? [...currentAccounts, ...response.content]
-            : response.content
-        );
-      } catch (error) {
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load accounts."
-        );
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-        setIsRefreshing(false);
-      }
-    },
-    [submittedSearch]
-  );
+  const loadAccounts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetchAccounts({
+        page: 0,
+        size: 20,
+        search: submittedSearch.trim(),
+      });
+      setAccounts(response.content || []);
+    } catch (err) {
+      console.error("Accounts load error", err);
+      setAccounts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [submittedSearch]);
 
   useEffect(() => {
-    loadAccounts(0, "replace");
+    loadAccounts();
   }, [loadAccounts]);
 
-  function handleSubmitSearch() {
-    setSubmittedSearch(search);
-  }
-
-  function handleClearSearch() {
-    setSearch("");
-    setSubmittedSearch("");
-  }
-
-  function handleRefresh() {
-    setIsRefreshing(true);
-    loadAccounts(0, "replace");
-  }
-
-  function handleLoadMore() {
-    if (!pageInfo || pageInfo.last) {
-      return;
-    }
-
-    loadAccounts(pageInfo.number + 1, "append");
-  }
+  const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <Pressable
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>Back</Text>
-          </Pressable>
+      <ScreenHeader title="My Accounts" showBack={true} />
 
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>Customer Accounts</Text>
-            <Text style={styles.title}>Accounts</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.mainWrapper}>
+          {/* Total Balance Card */}
+          <View style={styles.totalCard}>
+            <View style={styles.totalCardContent}>
+              <Text style={styles.totalLabel}>Total Balance</Text>
+              <Text style={styles.totalAmount}>₹{totalBalance.toLocaleString("en-IN")}.00</Text>
+            </View>
+            <View style={styles.watermarkIcon}>
+              <Ionicons name="business" size={90} color="rgba(255, 255, 255, 0.08)" />
+            </View>
+          </View>
+
+          {/* Search bar */}
+          <View style={styles.searchRow}>
+            <Ionicons name="search-outline" size={18} color={Colors.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search account number..."
+              onSubmitEditing={() => setSubmittedSearch(search)}
+              style={styles.searchInput}
+            />
+          </View>
+
+          {/* Account Cards List */}
+          <View style={styles.listSection}>
+            {isLoading ? (
+              <ActivityIndicator color={Colors.actionBlue} size="large" style={{ marginVertical: 20 }} />
+            ) : accounts.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Ionicons name="wallet-outline" size={40} color={Colors.textSecondary} />
+                <Text style={styles.emptyTitle}>No accounts found</Text>
+              </View>
+            ) : (
+              accounts.map((acc) => {
+                const isActive = acc.status === "ACTIVE";
+                const isSavings = acc.accountType === "SAVINGS";
+                return (
+                  <Pressable
+                    key={acc.id}
+                    style={({ pressed }) => [styles.accountCard, pressed && styles.cardPressed]}
+                    onPress={() => router.push(`/(customer)/accounts/${acc.id}` as Href)}
+                  >
+                    <View style={styles.accHeader}>
+                      <View style={styles.accTypeBadge}>
+                        <Ionicons
+                          name={isSavings ? "wallet" : "card"}
+                          size={18}
+                          color={Colors.actionBlue}
+                        />
+                        <Text style={styles.accTypeName}>
+                          {isSavings ? "Savings Account" : "Current Account"}
+                        </Text>
+                      </View>
+                      <Text style={styles.accNumberMask}>•••• •••• {acc.accountNumber.slice(-4)}</Text>
+                    </View>
+
+                    <View style={styles.accBody}>
+                      <View>
+                        <Text style={styles.balanceHeading}>Available Balance</Text>
+                        <Text style={styles.accBalance}>₹{(acc.balance || 0).toLocaleString("en-IN")}.00</Text>
+                      </View>
+
+                      <View style={[styles.activePill, !isActive && styles.inactivePill]}>
+                        <View style={[styles.activeDot, !isActive && styles.inactiveDot]} />
+                        <Text style={[styles.activeText, !isActive && styles.inactiveText]}>{acc.status}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         </View>
+      </ScrollView>
 
-        <View style={styles.searchRow}>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search account number"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onSubmitEditing={handleSubmitSearch}
-            style={styles.searchInput}
-          />
-
-          <Pressable
-            onPress={handleSubmitSearch}
-            style={styles.searchButton}
-          >
-            <Text style={styles.searchButtonText}>Search</Text>
-          </Pressable>
-        </View>
-
-        {submittedSearch ? (
-          <Pressable
-            onPress={handleClearSearch}
-            style={styles.clearSearchButton}
-          >
-            <Text style={styles.clearSearchText}>
-              Clear search for {submittedSearch}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {pageInfo ? (
-          <Text style={styles.resultCount}>
-            {pageInfo.totalElements} account
-            {pageInfo.totalElements === 1 ? "" : "s"}
-          </Text>
-        ) : null}
-      </View>
-
-      <AccountList
-        accounts={accounts}
-        isLoading={isLoading}
-        isLoadingMore={isLoadingMore}
-        isRefreshing={isRefreshing}
-        error={error}
-        canLoadMore={!!pageInfo && !pageInfo.last}
-        onAccountPress={(id) =>
-          router.push(`/accounts/${id}` as Href)
-        }
-        onRefresh={handleRefresh}
-        onLoadMore={handleLoadMore}
-        onRetry={() => loadAccounts(0, "replace")}
-      />
+      <BottomNavBar type="customer" />
     </View>
   );
 }
@@ -162,86 +134,156 @@ export default function AccountsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: Colors.background,
   },
-  header: {
-    gap: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
     paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 18,
-    backgroundColor: "#FFFFFF",
+    paddingTop: 16,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
+  totalCard: {
+    backgroundColor: Colors.primaryBlue,
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 18,
+    position: "relative",
+    overflow: "hidden",
   },
-  backButton: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "#EEF2F7",
+  totalCardContent: {
+    zIndex: 2,
   },
-  backButtonText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
+  totalLabel: {
+    fontSize: 13,
+    color: "#D5E3FF",
+    fontWeight: "600",
   },
-  headerCopy: {
-    flex: 1,
+  totalAmount: {
+    fontSize: 30,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    marginTop: 4,
   },
-  eyebrow: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  title: {
-    marginTop: 2,
-    color: "#111827",
-    fontSize: 28,
-    fontWeight: "800",
+  watermarkIcon: {
+    position: "absolute",
+    right: -10,
+    bottom: -15,
   },
   searchRow: {
     flexDirection: "row",
-    gap: 10,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    marginBottom: 18,
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    height: 46,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    color: "#111827",
-    fontSize: 15,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  listSection: {
+    gap: 14,
+    marginBottom: 20,
+  },
+  accountCard: {
     backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  searchButton: {
-    minWidth: 86,
+  cardPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
+  },
+  accHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    backgroundColor: "#111827",
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
-  searchButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+  accTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  clearSearchButton: {
-    alignSelf: "flex-start",
+  accTypeName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.textPrimary,
   },
-  clearSearchText: {
-    color: "#1D4ED8",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  resultCount: {
-    color: "#6B7280",
-    fontSize: 13,
+  accNumberMask: {
+    fontSize: 12,
     fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  accBody: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+  balanceHeading: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  accBalance: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: Colors.actionBlue,
+    marginTop: 2,
+  },
+  activePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  inactivePill: {
+    backgroundColor: "#FEE2E2",
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.success,
+  },
+  inactiveDot: {
+    backgroundColor: Colors.danger,
+  },
+  activeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.success,
+  },
+  inactiveText: {
+    color: Colors.danger,
+  },
+  emptyCard: {
+    padding: 30,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textSecondary,
   },
 });

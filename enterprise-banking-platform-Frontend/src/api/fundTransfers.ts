@@ -3,7 +3,7 @@ import type {
   CreateTransferRequest,
   TransferPage,
   TransferResponse,
-} from "../types/fundTransfer";
+} from "@/types/fundTransfer";
 
 export async function createTransfer(
   request: CreateTransferRequest

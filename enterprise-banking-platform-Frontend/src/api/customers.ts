@@ -3,7 +3,7 @@ import type {
   CreateCustomerRequest,
   Customer,
   CustomerPage,
-} from "../types/customer";
+} from "@/types/customer";
 
 export async function createCustomer(
   request: CreateCustomerRequest
@@ -38,6 +38,16 @@ export async function getCustomers(
 
   return apiRequest<CustomerPage>(
     `/customers${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+    },
+    true
+  );
+}
+
+export async function getCustomerById(id: string): Promise<Customer> {
+  return apiRequest<Customer>(
+    `/customers/${id}`,
     {
       method: "GET",
     },

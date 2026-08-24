@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import type { BeneficiaryStatus } from "../../types/beneficiary";
+import type { BeneficiaryStatus } from "@/types/beneficiary";
 
 interface BeneficiaryStatusBadgeProps {
   status: BeneficiaryStatus;

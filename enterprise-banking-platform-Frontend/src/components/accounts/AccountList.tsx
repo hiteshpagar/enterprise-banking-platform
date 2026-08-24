@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import type { AccountSummary } from "../../types/account";
+import type { AccountSummary } from "@/types/account";
 import { AccountCard } from "./AccountCard";
 
 interface AccountListProps {

@@ -10,8 +10,8 @@ import * as SecureStore from "expo-secure-store";
 import {
   getCurrentUser,
   login as loginApi,
-} from "../api/auth";
-import type { AuthUser, JwtPayload } from "../types/auth";
+} from "@/api/auth";
+import type { AuthUser, JwtPayload } from "@/types/auth";
 
 const TOKEN_KEY = "access_token";
 const TOKEN_TYPE_KEY = "token_type";

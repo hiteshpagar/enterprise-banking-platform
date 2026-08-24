@@ -1,6 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,277 +11,149 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-import { AccessDenied } from "../../../components/auth/AccessDenied";
-import { useAuth } from "../../../context/AuthContext";
-import { onboardCustomer } from "../../../services/customerService";
-import type {
-  CustomerStatus,
-  Gender,
-} from "../../../types/customer";
-
-const genderOptions: Gender[] = ["MALE", "FEMALE", "OTHER"];
-const statusOptions: CustomerStatus[] = ["ACTIVE", "INACTIVE", "BLOCKED"];
+import { Ionicons } from "@expo/vector-icons";
+import { createCustomer } from "@/services/customerService";
+import { Colors } from "@/constants/theme";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
 
 export default function CreateCustomerScreen() {
-  const { hasPermission } = useAuth();
   const [firstName, setFirstName] = useState("");
-  const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [gender, setGender] = useState<Gender>("MALE");
-  const [mobileNumber, setMobileNumber] = useState("");
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<CustomerStatus>("ACTIVE");
+  const [phone, setPhone] = useState("");
+  const [panNumber, setPanNumber] = useState("");
+  const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!hasPermission("CUSTOMER_CREATE")) {
-    return <AccessDenied />;
-  }
-
-  async function handleSubmit() {
+  async function handleCreate() {
     setError("");
-    setSuccess("");
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("First name and last name are required.");
       return;
     }
 
-    if (!dateOfBirth.trim()) {
-      setError("Date of birth is required.");
-      return;
-    }
-
-    if (!/^[0-9]{10}$/.test(mobileNumber.trim())) {
-      setError("Mobile number must be 10 digits.");
-      return;
-    }
-
-    if (!email.trim()) {
-      setError("Email is required.");
+    if (!email.trim() || !phone.trim()) {
+      setError("Email and phone number are required.");
       return;
     }
 
     try {
       setIsSubmitting(true);
-
-      const customer = await onboardCustomer({
+      await createCustomer({
         firstName: firstName.trim(),
-        middleName: middleName.trim() || undefined,
         lastName: lastName.trim(),
-        dateOfBirth: dateOfBirth.trim(),
-        gender,
-        mobileNumber: mobileNumber.trim(),
         email: email.trim(),
-        status,
+        phone: phone.trim(),
+        panNumber: panNumber.trim().toUpperCase(),
+        aadhaarNumber: aadhaarNumber.trim(),
       });
-
-      setSuccess(
-        `Customer ${customer.customerNumber} created. Login credentials were sent by email.`
-      );
-      setFirstName("");
-      setMiddleName("");
-      setLastName("");
-      setDateOfBirth("");
-      setGender("MALE");
-      setMobileNumber("");
-      setEmail("");
-      setStatus("ACTIVE");
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to create customer."
-      );
+      router.back();
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError("Failed to create customer.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back</Text>
-        </Pressable>
+    <View style={styles.container}>
+      <ScreenHeader title="Add New Customer" showBack={true} />
 
-        <Text style={styles.eyebrow}>Customer Management</Text>
-        <Text style={styles.title}>Create Customer</Text>
-      </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.mainWrapper}>
+            <View style={styles.formCard}>
+              <View style={styles.row}>
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.label}>First Name</Text>
+                  <TextInput
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    placeholder="First name"
+                    style={styles.input}
+                  />
+                </View>
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.label}>Last Name</Text>
+                  <TextInput
+                    value={lastName}
+                    onChangeText={setLastName}
+                    placeholder="Last name"
+                    style={styles.input}
+                  />
+                </View>
+              </View>
 
-      <View style={styles.form}>
-        <Field
-          label="First Name"
-          value={firstName}
-          onChangeText={setFirstName}
-          editable={!isSubmitting}
-        />
-        <Field
-          label="Middle Name"
-          value={middleName}
-          onChangeText={setMiddleName}
-          editable={!isSubmitting}
-        />
-        <Field
-          label="Last Name"
-          value={lastName}
-          onChangeText={setLastName}
-          editable={!isSubmitting}
-        />
-        <Field
-          label="Date of Birth"
-          value={dateOfBirth}
-          onChangeText={setDateOfBirth}
-          placeholder="YYYY-MM-DD"
-          editable={!isSubmitting}
-        />
+              <View style={styles.field}>
+                <Text style={styles.label}>Email Address</Text>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  style={styles.input}
+                />
+              </View>
 
-        <OptionGroup
-          label="Gender"
-          options={genderOptions}
-          value={gender}
-          onChange={setGender}
-          disabled={isSubmitting}
-        />
+              <View style={styles.field}>
+                <Text style={styles.label}>Mobile Phone Number</Text>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Enter 10-digit mobile number"
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                />
+              </View>
 
-        <Field
-          label="Mobile Number"
-          value={mobileNumber}
-          onChangeText={setMobileNumber}
-          keyboardType="number-pad"
-          placeholder="10 digits"
-          editable={!isSubmitting}
-        />
-        <Field
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!isSubmitting}
-        />
+              <View style={styles.field}>
+                <Text style={styles.label}>PAN Number</Text>
+                <TextInput
+                  value={panNumber}
+                  onChangeText={setPanNumber}
+                  placeholder="Enter 10-character PAN"
+                  autoCapitalize="characters"
+                  style={styles.input}
+                />
+              </View>
 
-        <OptionGroup
-          label="Status"
-          options={statusOptions}
-          value={status}
-          onChange={setStatus}
-          disabled={isSubmitting}
-        />
+              <View style={styles.field}>
+                <Text style={styles.label}>Aadhaar Number</Text>
+                <TextInput
+                  value={aadhaarNumber}
+                  onChangeText={setAadhaarNumber}
+                  placeholder="Enter 12-digit Aadhaar number"
+                  keyboardType="number-pad"
+                  style={styles.input}
+                />
+              </View>
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <Pressable
+                onPress={handleCreate}
+                disabled={isSubmitting}
+                style={({ pressed }) => [styles.submitBtn, pressed && styles.pressed]}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Create Customer Record</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
-        ) : null}
-
-        {success ? (
-          <View style={styles.successBox}>
-            <Text style={styles.successText}>{success}</Text>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-          style={[
-            styles.submitButton,
-            isSubmitting && styles.submitButtonDisabled,
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.submitButtonText}>Create Customer</Text>
-          )}
-        </Pressable>
-      </View>
-    </ScrollView>
-  );
-}
-
-interface FieldProps {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  placeholder?: string;
-  editable?: boolean;
-  keyboardType?: "default" | "email-address" | "number-pad";
-  autoCapitalize?: "none" | "sentences" | "words" | "characters";
-}
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  editable,
-  keyboardType = "default",
-  autoCapitalize = "words",
-}: FieldProps) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        editable={editable}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-        style={styles.input}
-      />
-    </View>
-  );
-}
-
-interface OptionGroupProps<T extends string> {
-  label: string;
-  options: T[];
-  value: T;
-  onChange: (value: T) => void;
-  disabled?: boolean;
-}
-
-function OptionGroup<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-  disabled,
-}: OptionGroupProps<T>) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <View style={styles.optionRow}>
-        {options.map((option) => (
-          <Pressable
-            key={option}
-            onPress={() => onChange(option)}
-            disabled={disabled}
-            style={[
-              styles.optionButton,
-              value === option && styles.optionButtonSelected,
-            ]}
-          >
-            <Text
-              style={[
-                styles.optionButtonText,
-                value === option && styles.optionButtonTextSelected,
-              ]}
-            >
-              {option}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -287,119 +161,74 @@ function OptionGroup<T extends string>({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: Colors.background,
   },
-  content: {
-    gap: 20,
-    padding: 24,
-    paddingTop: 64,
+  scrollContent: {
+    paddingBottom: 24,
   },
-  header: {
-    gap: 6,
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
-  backButton: {
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "#EEF2F7",
-  },
-  backButtonText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  eyebrow: {
-    marginTop: 12,
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  title: {
-    color: "#111827",
-    fontSize: 30,
-    fontWeight: "800",
-  },
-  form: {
+  formCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
     gap: 16,
   },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+  },
   field: {
-    gap: 8,
+    gap: 6,
   },
   label: {
-    color: "#111827",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
+    color: Colors.textPrimary,
   },
   input: {
-    height: 50,
+    height: 48,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
+    borderColor: Colors.border,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    color: "#111827",
-    fontSize: 16,
+    fontSize: 15,
+    color: Colors.textPrimary,
     backgroundColor: "#FFFFFF",
-  },
-  optionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  optionButton: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "#FFFFFF",
-  },
-  optionButtonSelected: {
-    borderColor: "#111827",
-    backgroundColor: "#111827",
-  },
-  optionButtonText: {
-    color: "#374151",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  optionButtonTextSelected: {
-    color: "#FFFFFF",
   },
   errorBox: {
-    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     padding: 12,
-    backgroundColor: "#FEE2E2",
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
   },
   errorText: {
-    color: "#991B1B",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    color: Colors.danger,
   },
-  successBox: {
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#DCFCE7",
-  },
-  successText: {
-    color: "#166534",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  submitButton: {
+  submitBtn: {
     height: 52,
+    borderRadius: 14,
+    backgroundColor: Colors.actionBlue,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
-    backgroundColor: "#111827",
+    marginTop: 8,
   },
-  submitButtonDisabled: {
-    opacity: 0.6,
+  pressed: {
+    opacity: 0.9,
   },
-  submitButtonText: {
+  submitBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
   },
 });

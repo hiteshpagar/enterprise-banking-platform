@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import type { AccountSummary } from "../../types/account";
-import type { Beneficiary } from "../../types/beneficiary";
+import type { AccountSummary } from "@/types/account";
+import type { Beneficiary } from "@/types/beneficiary";
 
 interface TransferReviewProps {
   sourceAccount: AccountSummary;

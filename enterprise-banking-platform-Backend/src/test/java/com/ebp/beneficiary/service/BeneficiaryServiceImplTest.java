@@ -159,6 +159,32 @@ class BeneficiaryServiceImplTest {
         verify(beneficiaryRepository).findByCustomerId(customer1.getId(), pageable);
     }
 
+    @Test
+    @DisplayName("Customer can list own beneficiaries filtered by status")
+    void customerCanListOwnBeneficiariesWithStatusFilter() {
+        mockAuthCustomer();
+
+        Pageable pageable = PageRequest.of(0, 10, Sort.by("createdAt").descending());
+        Page<Beneficiary> beneficiaryPage = new PageImpl<>(List.of(beneficiary1));
+
+        when(beneficiaryRepository.findByCustomerIdAndStatus(customer1.getId(), BeneficiaryStatus.ACTIVE, pageable))
+                .thenReturn(beneficiaryPage);
+
+        BeneficiaryResponse response = new BeneficiaryResponse();
+        response.setId(beneficiary1.getId());
+        response.setCustomerId(customer1.getId());
+        response.setBeneficiaryName("Jane Doe");
+
+        when(beneficiaryMapper.toResponse(beneficiary1)).thenReturn(response);
+
+        Page<BeneficiaryResponse> result =
+                beneficiaryService.getCurrentCustomerBeneficiaries(0, 10, BeneficiaryStatus.ACTIVE, username);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(beneficiaryRepository).findByCustomerIdAndStatus(customer1.getId(), BeneficiaryStatus.ACTIVE, pageable);
+    }
+
     // 2. Customer cannot list another customer's beneficiaries
     @Test
     @DisplayName("Customer query is strictly scoped to authenticated customer and does not query another customer")

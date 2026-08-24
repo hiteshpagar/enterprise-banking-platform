@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import type { Beneficiary } from "../../types/beneficiary";
+import type { Beneficiary } from "@/types/beneficiary";
 import { BeneficiaryCard } from "./BeneficiaryCard";
 
 interface BeneficiaryListProps {

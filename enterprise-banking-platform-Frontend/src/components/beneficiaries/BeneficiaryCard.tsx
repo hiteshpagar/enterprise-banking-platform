@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { Beneficiary } from "../../types/beneficiary";
+import type { Beneficiary } from "@/types/beneficiary";
 import { BeneficiaryStatusBadge } from "./BeneficiaryStatusBadge";
 
 interface BeneficiaryCardProps {

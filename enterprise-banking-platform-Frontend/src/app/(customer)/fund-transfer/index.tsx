@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,393 +10,464 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { executeFundTransfer } from "@/services/fundTransferService";
+import { fetchAccounts } from "@/services/accountService";
+import { fetchBeneficiaries } from "@/services/beneficiaryService";
+import type { AccountSummary } from "@/types/account";
+import type { Beneficiary } from "@/types/beneficiary";
+import { Colors } from "@/constants/theme";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
+import { BottomNavBar } from "@/components/common/BottomNavBar";
 
-import { fetchAccounts } from "../../../services/accountService";
-import { fetchCustomerBeneficiaries } from "../../../services/beneficiaryService";
-import { initiateTransfer } from "../../../services/fundTransferService";
-
-import type { AccountSummary } from "../../../types/account";
-import type { Beneficiary } from "../../../types/beneficiary";
-import type { TransferResponse } from "../../../types/fundTransfer";
-
-import { TransferStepIndicator } from "../../../components/fund-transfer/TransferStepIndicator";
-import { AccountPicker } from "../../../components/fund-transfer/AccountPicker";
-import { BeneficiaryPicker } from "../../../components/fund-transfer/BeneficiaryPicker";
-import { TransferReview } from "../../../components/fund-transfer/TransferReview";
-import { TransferResult } from "../../../components/fund-transfer/TransferResult";
-
-export default function FundTransferScreen() {
-  const [currentStep, setCurrentStep] = useState(1); // 1: Account, 2: Beneficiary, 3: Amount, 4: Review, 5: Result
+export default function CustomerFundTransferScreen() {
+  const [step, setStep] = useState<"FORM" | "REVIEW" | "SUCCESS" | "FAILED">("FORM");
+  const [amount, setAmount] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [selectedQuickAmount, setSelectedQuickAmount] = useState("");
 
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
-
   const [selectedAccount, setSelectedAccount] = useState<AccountSummary | null>(null);
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
 
-  const [amountInput, setAmountInput] = useState("");
-  const [descriptionInput, setDescriptionInput] = useState("");
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
 
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [validationError, setValidationError] = useState("");
-  const [apiError, setApiError] = useState("");
-
-  const [transferResponse, setTransferResponse] = useState<TransferResponse | null>(null);
-  const [transferSuccess, setTransferSuccess] = useState(false);
-
-  const loadInitialData = useCallback(async () => {
-    setIsLoadingData(true);
-    setApiError("");
-
-    try {
-      const [accResponse, benResponse] = await Promise.all([
-        fetchAccounts({ page: 0, size: 50 }, true),
-        fetchCustomerBeneficiaries(0, 50),
-      ]);
-
-      const activeAccounts = accResponse.content.filter(
-        (a) => a.status === "ACTIVE"
-      );
-      setAccounts(activeAccounts);
-
-      if (activeAccounts.length > 0) {
-        setSelectedAccount(activeAccounts[0]);
-      }
-
-      const activeBeneficiaries = benResponse.content.filter(
-        (b) => b.status === "ACTIVE"
-      );
-      setBeneficiaries(activeBeneficiaries);
-
-      if (activeBeneficiaries.length > 0) {
-        setSelectedBeneficiary(activeBeneficiaries[0]);
-      }
-    } catch (err) {
-      setApiError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load accounts or beneficiaries."
-      );
-    } finally {
-      setIsLoadingData(false);
-    }
-  }, []);
+  const [error, setError] = useState("");
+  const [txResult, setTxResult] = useState<any>(null);
 
   useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    async function loadFormOptions() {
+      setIsLoading(true);
+      try {
+        const [accRes, benRes] = await Promise.allSettled([
+          fetchAccounts({ page: 0, size: 20 }),
+          fetchBeneficiaries(0, 50, "ACTIVE"),
+        ]);
 
-  function handleAccountSelect(account: AccountSummary) {
-    setSelectedAccount(account);
-    setValidationError("");
-  }
-
-  function handleBeneficiarySelect(beneficiary: Beneficiary) {
-    setSelectedBeneficiary(beneficiary);
-    setValidationError("");
-  }
-
-  function handleNextFromAccount() {
-    if (!selectedAccount) {
-      setValidationError("Please select a source account.");
-      return;
+        if (accRes.status === "fulfilled" && accRes.value.content?.length) {
+          setAccounts(accRes.value.content);
+          setSelectedAccount(accRes.value.content[0]);
+        }
+        if (benRes.status === "fulfilled" && benRes.value?.length) {
+          const activeBeneficiaries = benRes.value.filter(
+            (b) => b.status === "ACTIVE"
+          );
+          setBeneficiaries(activeBeneficiaries);
+          setSelectedBeneficiary(
+            activeBeneficiaries.length > 0 ? activeBeneficiaries[0] : null
+          );
+        } else {
+          setBeneficiaries([]);
+          setSelectedBeneficiary(null);
+        }
+      } catch (err) {
+        console.error("Fund transfer data load error", err);
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setValidationError("");
-    setCurrentStep(2);
-  }
+    loadFormOptions();
+  }, []);
 
-  function handleNextFromBeneficiary() {
-    if (!selectedBeneficiary) {
-      setValidationError("Please select a beneficiary.");
-      return;
+  function handleQuickAmountSelect(val: string) {
+    setSelectedQuickAmount(val);
+    if (val !== "Other") {
+      setAmount(val);
     }
-
-    if (
-      selectedAccount &&
-      (selectedAccount.id === selectedBeneficiary.accountId ||
-        selectedAccount.accountNumber === selectedBeneficiary.accountNumber)
-    ) {
-      setValidationError(
-        "Source and destination accounts must be different. Please select a beneficiary with a different account number."
-      );
-      return;
-    }
-
-    setValidationError("");
-    setCurrentStep(3);
-  }
-
-  function handleNextFromAmount() {
-    setValidationError("");
-
-    const trimmed = amountInput.trim();
-    if (!trimmed) {
-      setValidationError("Please enter a transfer amount.");
-      return;
-    }
-
-    const numericAmount = parseFloat(trimmed);
-    if (isNaN(numericAmount)) {
-      setValidationError("Please enter a valid numeric amount.");
-      return;
-    }
-
-    if (numericAmount <= 0) {
-      setValidationError("Amount must be greater than zero.");
-      return;
-    }
-
-    if (selectedAccount && numericAmount > selectedAccount.balance) {
-      setValidationError(
-        `Insufficient balance. Available balance is ${selectedAccount.currency} ${selectedAccount.balance.toFixed(
-          2
-        )}`
-      );
-      return;
-    }
-
-    setCurrentStep(4);
   }
 
   async function handleConfirmTransfer() {
-    if (!selectedAccount || !selectedBeneficiary) {
-      return;
-    }
-
-    const numericAmount = parseFloat(amountInput.trim());
-    if (isNaN(numericAmount) || numericAmount <= 0) {
+    if (!selectedAccount || !selectedBeneficiary || !amount) {
+      setError("Please fill out all transfer fields");
       return;
     }
 
     setIsSubmitting(true);
-    setApiError("");
-
+    setError("");
     try {
-      const response = await initiateTransfer({
-        sourceAccountId: selectedAccount.id,
-        destinationAccountId: selectedBeneficiary.accountId,
-        destinationAccountNumber: selectedBeneficiary.accountNumber,
-        amount: numericAmount,
-        description: descriptionInput.trim() || undefined,
-      });
-
-      setTransferResponse(response);
-      setTransferSuccess(true);
-      setCurrentStep(5);
+      const transferAmount = parseFloat(amount);
+      if (transferAmount > selectedAccount.balance) {
+        setStep("FAILED");
+      } else {
+        const res = await executeFundTransfer({
+          sourceAccountId: selectedAccount.id,
+          targetAccountId: selectedBeneficiary.accountId || selectedBeneficiary.id,
+          amount: transferAmount,
+          transferType: "IMPS",
+          remarks,
+        });
+        setTxResult(res);
+        setStep("SUCCESS");
+      }
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Transfer failed due to a network or server error.";
-      setApiError(msg);
-      setTransferSuccess(false);
-      setCurrentStep(5);
+      if (err instanceof Error) setError(err.message);
+      setStep("FAILED");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function handleResetForm() {
-    setCurrentStep(1);
-    setAmountInput("");
-    setDescriptionInput("");
-    setValidationError("");
-    setApiError("");
-    setTransferResponse(null);
-    setTransferSuccess(false);
-    loadInitialData();
-  }
-
-  if (isLoadingData) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-        <Text style={styles.loadingText}>Loading accounts and beneficiaries...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back</Text>
-        </Pressable>
+      <ScreenHeader
+        title={
+          step === "FORM"
+            ? "Fund Transfer"
+            : step === "REVIEW"
+            ? "Review Transfer"
+            : step === "SUCCESS"
+            ? "Transfer Success"
+            : "Transfer Failed"
+        }
+        showBack={step === "FORM" || step === "REVIEW"}
+        onBack={() => {
+          if (step === "REVIEW") setStep("FORM");
+          else router.back();
+        }}
+      />
 
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>Fund Transfer</Text>
-          <Text style={styles.title}>Send Money</Text>
-        </View>
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.mainWrapper}>
+          {/* STEP 1: FORM */}
+          {step === "FORM" && (
+            <View style={styles.stepContainer}>
+              {isLoading ? (
+                <ActivityIndicator color={Colors.actionBlue} size="large" style={{ marginVertical: 30 }} />
+              ) : (
+                <>
+                  <Text style={styles.fieldLabel}>From Account</Text>
+                  {selectedAccount ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.accountCard, pressed && styles.cardPressed]}
+                      onPress={() => accounts.length > 1 && setShowAccountModal(true)}
+                    >
+                      <View style={styles.cardIconCircle}>
+                        <Ionicons name="business" size={20} color={Colors.actionBlue} />
+                      </View>
+                      <View style={styles.cardDetails}>
+                        <Text style={styles.cardTitle}>
+                          {selectedAccount.accountType === "SAVINGS" ? "Savings Account" : "Current Account"}
+                        </Text>
+                        <Text style={styles.cardSubText}>•••• •••• {selectedAccount.accountNumber.slice(-4)}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={styles.cardBalance}>₹{(selectedAccount.balance || 0).toLocaleString("en-IN")}.00</Text>
+                        {accounts.length > 1 && (
+                          <View style={styles.switchBadge}>
+                            <Text style={styles.switchText}>Switch</Text>
+                            <Ionicons name="chevron-down" size={12} color={Colors.actionBlue} />
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.emptyNotice}>
+                      <Text style={styles.emptyNoticeText}>No accounts available</Text>
+                    </View>
+                  )}
 
-      {/* STEP INDICATOR */}
-      <TransferStepIndicator currentStep={currentStep} />
+                  <Text style={styles.fieldLabel}>To Beneficiary</Text>
+                  {selectedBeneficiary ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.accountCard, pressed && styles.cardPressed]}
+                      onPress={() => beneficiaries.length > 1 && setShowBeneficiaryModal(true)}
+                    >
+                      <View style={[styles.cardIconCircle, { backgroundColor: "#FEF3C7" }]}>
+                        <Ionicons name="person" size={20} color="#D97706" />
+                      </View>
+                      <View style={styles.cardDetails}>
+                        <Text style={styles.cardTitle}>{selectedBeneficiary.beneficiaryName}</Text>
+                        <Text style={styles.cardSubText}>
+                          {selectedBeneficiary.bankName ? `${selectedBeneficiary.bankName} ` : ""}•••• {selectedBeneficiary.accountNumber.slice(-4)}
+                        </Text>
+                      </View>
+                      {beneficiaries.length > 1 ? (
+                        <View style={styles.switchBadge}>
+                          <Text style={styles.switchText}>Switch ({beneficiaries.length})</Text>
+                          <Ionicons name="chevron-down" size={12} color={Colors.actionBlue} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  ) : (
+                    <View style={styles.emptyNotice}>
+                      <Text style={styles.emptyNoticeText}>No active beneficiaries available for transfer</Text>
+                    </View>
+                  )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {validationError ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{validationError}</Text>
-          </View>
-        ) : null}
+                  <Text style={styles.fieldLabel}>Amount</Text>
+                  <View style={styles.amountInputWrapper}>
+                    <Text style={styles.currencySymbol}>₹</Text>
+                    <TextInput
+                      value={amount}
+                      onChangeText={setAmount}
+                      placeholder="Enter amount"
+                      keyboardType="number-pad"
+                      style={styles.amountInput}
+                    />
+                  </View>
 
-        {/* STEP 1: SELECT ACCOUNT */}
-        {currentStep === 1 && (
-          <View style={styles.stepContainer}>
-            <AccountPicker
-              accounts={accounts}
-              selectedAccountId={selectedAccount?.id}
-              onSelect={handleAccountSelect}
-            />
+                  {/* Quick Amount Chips */}
+                  <View style={styles.chipRow}>
+                    {["1000", "2000", "5000", "Other"].map((val) => {
+                      const isSelected = selectedQuickAmount === val;
+                      return (
+                        <Pressable
+                          key={val}
+                          style={[styles.chip, isSelected && styles.chipActive]}
+                          onPress={() => handleQuickAmountSelect(val)}
+                        >
+                          <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                            {val === "Other" ? "Other" : `₹${parseInt(val).toLocaleString("en-IN")}`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
 
-            <Pressable
-              onPress={handleNextFromAccount}
-              disabled={!selectedAccount}
-              style={[
-                styles.primaryButton,
-                !selectedAccount && styles.disabledButton,
-              ]}
-            >
-              <Text style={styles.primaryButtonText}>Next: Select Beneficiary</Text>
-            </Pressable>
-          </View>
-        )}
+                  {error ? (
+                    <View style={styles.errorBox}>
+                      <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                      <Text style={styles.errorText}>{error}</Text>
+                    </View>
+                  ) : null}
 
-        {/* STEP 2: SELECT BENEFICIARY */}
-        {currentStep === 2 && (
-          <View style={styles.stepContainer}>
-            <BeneficiaryPicker
-              beneficiaries={beneficiaries}
-              selectedBeneficiaryId={selectedBeneficiary?.id}
-              onSelect={handleBeneficiarySelect}
-            />
-
-            <View style={styles.buttonRow}>
-              <Pressable
-                onPress={() => setCurrentStep(1)}
-                style={styles.secondaryButton}
-              >
-                <Text style={styles.secondaryButtonText}>Back</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleNextFromBeneficiary}
-                disabled={!selectedBeneficiary}
-                style={[
-                  styles.primaryButton,
-                  !selectedBeneficiary && styles.disabledButton,
-                  { flex: 2 },
-                ]}
-              >
-                <Text style={styles.primaryButtonText}>Next: Enter Amount</Text>
-              </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
+                    onPress={() => {
+                      if (!amount || parseFloat(amount) <= 0) {
+                        setError("Please enter a valid amount");
+                        return;
+                      }
+                      setStep("REVIEW");
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>Continue</Text>
+                  </Pressable>
+                </>
+              )}
             </View>
-          </View>
-        )}
+          )}
 
-        {/* STEP 3: ENTER AMOUNT & DESCRIPTION */}
-        {currentStep === 3 && selectedAccount && selectedBeneficiary && (
-          <View style={styles.stepContainer}>
-            <Text style={styles.sectionHeader}>Enter Transfer Amount</Text>
+          {/* STEP 2: REVIEW */}
+          {step === "REVIEW" && (
+            <View style={styles.stepContainer}>
+              <View style={styles.reviewCard}>
+                <Text style={styles.reviewCardTitle}>Transfer Details</Text>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>From</Text>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.reviewValBold}>
+                      {selectedAccount?.accountType === "SAVINGS" ? "Savings Account" : "Current Account"}
+                    </Text>
+                    <Text style={styles.reviewValSub}>•••• •••• {selectedAccount?.accountNumber.slice(-4)}</Text>
+                  </View>
+                </View>
+                <View style={styles.divider} />
 
-            {/* SELECTION SUMMARY CARD */}
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>From</Text>
-                <Text style={styles.summaryValue}>
-                  {selectedAccount.accountNumber} ({selectedAccount.currency}{" "}
-                  {selectedAccount.balance.toFixed(2)})
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>To</Text>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.reviewValBold}>{selectedBeneficiary?.beneficiaryName}</Text>
+                    <Text style={styles.reviewValSub}>
+                      {selectedBeneficiary?.bankName ? `${selectedBeneficiary.bankName} ` : ""}•••• {selectedBeneficiary?.accountNumber.slice(-4)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.divider} />
+
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Amount</Text>
+                  <Text style={styles.reviewAmount}>₹{parseFloat(amount || "0").toLocaleString("en-IN")}.00</Text>
+                </View>
+                <View style={styles.divider} />
+
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Transfer Type</Text>
+                  <Text style={styles.reviewValBold}>IMPS</Text>
+                </View>
+
+                {remarks ? (
+                  <>
+                    <View style={styles.divider} />
+                    <View style={styles.reviewRow}>
+                      <Text style={styles.reviewLabel}>Remarks</Text>
+                      <Text style={styles.reviewValBold}>{remarks}</Text>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+
+              {/* Warning Alert Box */}
+              <View style={styles.warningBox}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#D97706" />
+                <Text style={styles.warningText}>
+                  Please review the details carefully before confirming.
                 </Text>
               </View>
 
-              <View style={styles.summaryDivider} />
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>To</Text>
-                <Text style={styles.summaryValue}>
-                  {selectedBeneficiary.beneficiaryName} (
-                  {selectedBeneficiary.accountNumber})
-                </Text>
-              </View>
+              <Pressable
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
+                onPress={handleConfirmTransfer}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Confirm Transfer</Text>
+                )}
+              </Pressable>
             </View>
+          )}
 
-            {/* AMOUNT INPUT */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>
-                Amount ({selectedAccount.currency})
+          {/* STEP 3: SUCCESS */}
+          {step === "SUCCESS" && (
+            <View style={styles.resultContainer}>
+              <View style={styles.successIconBadge}>
+                <Ionicons name="checkmark" size={44} color="#FFFFFF" />
+              </View>
+
+              <Text style={styles.resultTitle}>Transfer Successful!</Text>
+              <Text style={styles.resultAmount}>₹{parseFloat(amount || "0").toLocaleString("en-IN")}.00</Text>
+              <Text style={styles.resultSubText}>
+                has been transferred to{"\n"}
+                <Text style={{ fontWeight: "700", color: Colors.textPrimary }}>{selectedBeneficiary?.beneficiaryName}</Text>{"\n"}
+                {selectedBeneficiary?.bankName ? `${selectedBeneficiary.bankName} ` : ""}•••• {selectedBeneficiary?.accountNumber.slice(-4)}
               </Text>
-              <TextInput
-                value={amountInput}
-                onChangeText={(val) => {
-                  setAmountInput(val);
-                  setValidationError("");
-                }}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
-                style={styles.amountInput}
-              />
-            </View>
 
-            {/* DESCRIPTION INPUT */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Description / Memo (Optional)</Text>
-              <TextInput
-                value={descriptionInput}
-                onChangeText={setDescriptionInput}
-                placeholder="e.g. Rent payment, Dinner split"
-                maxLength={255}
-                style={styles.textInput}
-              />
-            </View>
+              <View style={styles.receiptCard}>
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Transaction Reference</Text>
+                  <Text style={styles.receiptVal} numberOfLines={1} ellipsizeMode="middle">
+                    {txResult?.reference || txResult?.id || txResult?.transferReference || "TXN" + Date.now()}
+                  </Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Date & Time</Text>
+                  <Text style={styles.receiptVal}>{new Date().toLocaleDateString("en-IN")}</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Transfer Type</Text>
+                  <Text style={styles.receiptVal}>IMPS</Text>
+                </View>
+              </View>
 
-            <View style={styles.buttonRow}>
-              <Pressable
-                onPress={() => setCurrentStep(2)}
-                style={styles.secondaryButton}
-              >
-                <Text style={styles.secondaryButtonText}>Back</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleNextFromAmount}
-                style={[styles.primaryButton, { flex: 2 }]}
-              >
-                <Text style={styles.primaryButtonText}>Next: Review Transfer</Text>
+              <Pressable style={styles.primaryButton} onPress={() => router.push("/(customer)/dashboard")}>
+                <Text style={styles.primaryButtonText}>Back to Home</Text>
               </Pressable>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* STEP 4: REVIEW & CONFIRM */}
-        {currentStep === 4 && selectedAccount && selectedBeneficiary && (
-          <TransferReview
-            sourceAccount={selectedAccount}
-            beneficiary={selectedBeneficiary}
-            amount={parseFloat(amountInput) || 0}
-            description={descriptionInput.trim()}
-            isSubmitting={isSubmitting}
-            onCancel={() => setCurrentStep(3)}
-            onConfirm={handleConfirmTransfer}
-          />
-        )}
+          {/* STEP 4: FAILED */}
+          {step === "FAILED" && (
+            <View style={styles.resultContainer}>
+              <View style={styles.failedIconBadge}>
+                <Ionicons name="alert" size={44} color="#FFFFFF" />
+              </View>
 
-        {/* STEP 5: RESULT (SUCCESS / FAILURE) */}
-        {currentStep === 5 && (
-          <TransferResult
-            success={transferSuccess}
-            transferResponse={transferResponse}
-            errorMessage={apiError}
-            sourceAccount={selectedAccount}
-            beneficiary={selectedBeneficiary}
-            amount={parseFloat(amountInput) || 0}
-            onGoToDashboard={() => router.replace("/(customer)/dashboard")}
-            onViewHistory={() => router.replace("/(customer)/transactions")}
-            onNewTransfer={handleResetForm}
-          />
-        )}
+              <Text style={styles.resultTitle}>Transfer Failed!</Text>
+              <Text style={styles.failedSubTitle}>Insufficient Balance</Text>
+              <Text style={styles.resultSubText}>
+                You do not have enough balance to complete this transfer.
+              </Text>
+
+              <View style={styles.balanceSummaryCard}>
+                <Text style={styles.balanceSummaryLabel}>Available Balance</Text>
+                <Text style={styles.balanceSummaryVal}>₹{(selectedAccount?.balance || 0).toLocaleString("en-IN")}.00</Text>
+              </View>
+
+              <Pressable style={styles.primaryButton} onPress={() => setStep("FORM")}>
+                <Text style={styles.primaryButtonText}>Try Again</Text>
+              </Pressable>
+
+              <Pressable style={styles.secondaryButton} onPress={() => router.push("/(customer)/dashboard")}>
+                <Text style={styles.secondaryButtonText}>Back to Home</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </ScrollView>
+
+      {/* Account Picker Modal */}
+      <Modal visible={showAccountModal} transparent animationType="slide" onRequestClose={() => setShowAccountModal(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowAccountModal(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Source Account</Text>
+              <Pressable onPress={() => setShowAccountModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 350 }}>
+              {accounts.map((acc) => {
+                const isSelected = selectedAccount?.id === acc.id;
+                return (
+                  <Pressable
+                    key={acc.id}
+                    style={[styles.modalOptionCard, isSelected && styles.modalOptionActive]}
+                    onPress={() => {
+                      setSelectedAccount(acc);
+                      setShowAccountModal(false);
+                    }}
+                  >
+                    <Ionicons name="business" size={20} color={isSelected ? Colors.actionBlue : Colors.textSecondary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalOptionTitle}>{acc.accountType === "SAVINGS" ? "Savings Account" : "Current Account"}</Text>
+                      <Text style={styles.modalOptionSub}>•••• {acc.accountNumber.slice(-4)}</Text>
+                    </View>
+                    <Text style={styles.modalOptionVal}>₹{(acc.balance || 0).toLocaleString("en-IN")}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Beneficiary Picker Modal */}
+      <Modal visible={showBeneficiaryModal} transparent animationType="slide" onRequestClose={() => setShowBeneficiaryModal(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowBeneficiaryModal(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Beneficiary</Text>
+              <Pressable onPress={() => setShowBeneficiaryModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 350 }}>
+              {beneficiaries.map((ben) => {
+                const isSelected = selectedBeneficiary?.id === ben.id;
+                return (
+                  <Pressable
+                    key={ben.id}
+                    style={[styles.modalOptionCard, isSelected && styles.modalOptionActive]}
+                    onPress={() => {
+                      setSelectedBeneficiary(ben);
+                      setShowBeneficiaryModal(false);
+                    }}
+                  >
+                    <Ionicons name="person" size={20} color={isSelected ? "#D97706" : Colors.textSecondary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalOptionTitle}>{ben.beneficiaryName}</Text>
+                      <Text style={styles.modalOptionSub}>{ben.bankName ? `${ben.bankName} • ` : ""}•••• {ben.accountNumber.slice(-4)}</Text>
+                    </View>
+                    {isSelected && <Ionicons name="checkmark-circle" size={20} color={Colors.actionBlue} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <BottomNavBar type="customer" />
     </View>
   );
 }
@@ -403,170 +475,395 @@ export default function FundTransferScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F5F7FA",
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 15,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 18,
-    backgroundColor: "#FFFFFF",
-  },
-  backButton: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "#EEF2F7",
-  },
-  backButtonText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  headerCopy: {
-    flex: 1,
-  },
-  eyebrow: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  title: {
-    marginTop: 2,
-    color: "#111827",
-    fontSize: 28,
-    fontWeight: "800",
+    backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 20,
-    gap: 16,
+    paddingBottom: 24,
+  },
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   stepContainer: {
-    gap: 16,
+    gap: 14,
   },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-  },
-  errorBox: {
-    backgroundColor: "#FEE2E2",
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-    padding: 14,
-    borderRadius: 10,
-  },
-  errorText: {
-    color: "#991B1B",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    gap: 10,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  summaryLabel: {
+  fieldLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#6B7280",
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#111827",
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: "#F3F4F6",
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#374151",
-  },
-  amountInput: {
-    height: 54,
-    borderWidth: 2,
-    borderColor: "#1D4ED8",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#111827",
-    backgroundColor: "#FFFFFF",
-  },
-  textInput: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: "#111827",
-    backgroundColor: "#FFFFFF",
-  },
-  buttonRow: {
+  accountCard: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  primaryButton: {
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: "#1D4ED8",
+  cardPressed: {
+    opacity: 0.85,
+    backgroundColor: "#F0F4FF",
+  },
+  cardIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.lightBlue,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
+    marginRight: 12,
+  },
+  cardDetails: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  cardSubText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  cardBalance: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Colors.actionBlue,
+  },
+  switchBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginTop: 4,
+    backgroundColor: Colors.lightBlue,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  switchText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.actionBlue,
+  },
+  emptyNotice: {
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emptyNoticeText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+  },
+  amountInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 52,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+  },
+  currencySymbol: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: Colors.actionBlue,
+    marginRight: 8,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginVertical: 4,
+  },
+  chip: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipActive: {
+    backgroundColor: Colors.actionBlue,
+    borderColor: Colors.actionBlue,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  chipTextActive: {
+    color: "#FFFFFF",
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.danger,
+  },
+  primaryButton: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: Colors.actionBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    width: "100%",
+  },
+  btnPressed: {
+    opacity: 0.9,
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  secondaryButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: "#EEF2F7",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-  },
-  secondaryButtonText: {
-    color: "#1F2937",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
   },
-  disabledButton: {
-    opacity: 0.5,
+  secondaryButton: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.actionBlue,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    width: "100%",
+  },
+  secondaryButtonText: {
+    color: Colors.actionBlue,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  reviewCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reviewCardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: 14,
+  },
+  reviewRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  reviewLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  reviewValBold: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  reviewValSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  reviewAmount: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: Colors.actionBlue,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  warningText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#92400E",
+    flex: 1,
+  },
+  resultContainer: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  successIconBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.actionBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  failedIconBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.actionBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  resultTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  failedSubTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.danger,
+    marginBottom: 8,
+  },
+  resultAmount: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: Colors.textPrimary,
+    marginBottom: 12,
+  },
+  resultSubText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  receiptCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 16,
+  },
+  receiptRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 12,
+  },
+  receiptLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  receiptVal: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: "right",
+  },
+  balanceSummaryCard: {
+    width: "100%",
+    backgroundColor: Colors.lightBlue,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  balanceSummaryLabel: {
+    fontSize: 13,
+    color: Colors.primaryBlue,
+    fontWeight: "600",
+  },
+  balanceSummaryVal: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: Colors.primary,
+    marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+  },
+  modalBackdrop: {
+    flex: 1,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  modalOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 10,
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  modalOptionActive: {
+    borderColor: Colors.actionBlue,
+    backgroundColor: Colors.lightBlue,
+  },
+  modalOptionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  modalOptionSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  modalOptionVal: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Colors.actionBlue,
   },
 });

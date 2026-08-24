@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import type { CombinedActivityItem } from "../../types/transaction";
+import type { CombinedActivityItem } from "@/types/transaction";
 
 interface ActivityItemCardProps {
   item: CombinedActivityItem;

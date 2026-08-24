@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { TransferResponse } from "../../types/fundTransfer";
-import type { AccountSummary } from "../../types/account";
-import type { Beneficiary } from "../../types/beneficiary";
+import type { TransferResponse } from "@/types/fundTransfer";
+import type { AccountSummary } from "@/types/account";
+import type { Beneficiary } from "@/types/beneficiary";
 
 interface TransferResultProps {
   success: boolean;

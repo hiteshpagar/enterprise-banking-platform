@@ -4,7 +4,7 @@ import type {
   AccountListParams,
   AccountPage,
   CreateAccountRequest,
-} from "../types/account";
+} from "@/types/account";
 
 function toQueryString(params: AccountListParams) {
   const searchParams = new URLSearchParams();

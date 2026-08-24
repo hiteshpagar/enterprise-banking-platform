@@ -9,7 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.web.servlet.filter.OrderedFilter;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
@@ -94,10 +93,23 @@ class BeneficiaryControllerTest {
     @WithMockUser(username = "customer_user", roles = {"CUSTOMER"})
     @DisplayName("GET /api/beneficiaries/me returns beneficiaries for authenticated customer")
     void getCurrentCustomerBeneficiaries_Success() throws Exception {
-        when(beneficiaryService.getCurrentCustomerBeneficiaries(eq(0), eq(10), anyString()))
+        when(beneficiaryService.getCurrentCustomerBeneficiaries(eq(0), eq(10), eq(null), anyString()))
                 .thenReturn(new PageImpl<>(List.of(response)));
 
         mockMvc.perform(get("/api/beneficiaries/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(beneficiaryId.toString()))
+                .andExpect(jsonPath("$.content[0].beneficiaryName").value("Jane Doe"));
+    }
+
+    @Test
+    @WithMockUser(username = "customer_user", roles = {"CUSTOMER"})
+    @DisplayName("GET /api/beneficiaries/me?status=ACTIVE filters active beneficiaries for authenticated customer")
+    void getCurrentCustomerBeneficiaries_WithStatus_Success() throws Exception {
+        when(beneficiaryService.getCurrentCustomerBeneficiaries(eq(0), eq(10), eq(BeneficiaryStatus.ACTIVE), anyString()))
+                .thenReturn(new PageImpl<>(List.of(response)));
+
+        mockMvc.perform(get("/api/beneficiaries/me?status=ACTIVE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(beneficiaryId.toString()))
                 .andExpect(jsonPath("$.content[0].beneficiaryName").value("Jane Doe"));
