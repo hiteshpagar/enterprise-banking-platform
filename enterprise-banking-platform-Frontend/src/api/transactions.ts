@@ -2,7 +2,7 @@ import { apiRequest } from "./client";
 import type {
   TransactionPage,
   TransactionResponse,
-} from "../types/transaction";
+} from "@/types/transaction";
 
 export async function getTransactionsByAccount(
   accountId: string,

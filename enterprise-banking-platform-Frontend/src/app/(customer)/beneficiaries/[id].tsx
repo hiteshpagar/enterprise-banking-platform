@@ -11,13 +11,13 @@ import {
   View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { BeneficiaryStatusBadge } from "../../../components/beneficiaries/BeneficiaryStatusBadge";
+import { BeneficiaryStatusBadge } from "@/components/beneficiaries/BeneficiaryStatusBadge";
 import {
   editCustomerBeneficiary,
   fetchCustomerBeneficiaryDetails,
   removeCustomerBeneficiary,
-} from "../../../services/beneficiaryService";
-import type { Beneficiary, BeneficiaryStatus } from "../../../types/beneficiary";
+} from "@/services/beneficiaryService";
+import type { Beneficiary, BeneficiaryStatus } from "@/types/beneficiary";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {

@@ -1,16 +1,25 @@
-import { getTransactionsByAccount as getTransactionsByAccountApi } from "../api/transactions";
-import { getTransfersByAccount as getTransfersByAccountApi } from "../api/fundTransfers";
+import { getTransactionsByAccount as getTransactionsByAccountApi } from "@/api/transactions";
+import { getTransfersByAccount as getTransfersByAccountApi } from "@/api/fundTransfers";
 import type {
   CombinedActivityItem,
   TransactionPage,
-} from "../types/transaction";
-import type { TransferPage } from "../types/fundTransfer";
+  TransactionListParams,
+} from "@/types/transaction";
 
 export async function fetchTransactionsByAccount(
   accountId: string,
   page = 0,
   size = 10
 ): Promise<TransactionPage> {
+  return getTransactionsByAccountApi(accountId, page, size);
+}
+
+export async function fetchTransactions(
+  params: TransactionListParams = {}
+): Promise<TransactionPage> {
+  const accountId = params.accountId || "1";
+  const page = params.page || 0;
+  const size = params.size || 10;
   return getTransactionsByAccountApi(accountId, page, size);
 }
 

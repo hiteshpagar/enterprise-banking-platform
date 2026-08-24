@@ -196,6 +196,7 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
     public Page<BeneficiaryResponse> getCurrentCustomerBeneficiaries(
             int page,
             int size,
+            BeneficiaryStatus status,
             String username) {
 
         Customer customer = getCustomerForUsername(username);
@@ -206,11 +207,11 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                         size,
                         Sort.by("createdAt").descending());
 
-        return beneficiaryRepository
-                .findByCustomerId(
-                        customer.getId(),
-                        pageable)
-                .map(this::mapToResponse);
+        Page<Beneficiary> beneficiaries = (status != null)
+                ? beneficiaryRepository.findByCustomerIdAndStatus(customer.getId(), status, pageable)
+                : beneficiaryRepository.findByCustomerId(customer.getId(), pageable);
+
+        return beneficiaries.map(this::mapToResponse);
     }
 
     @Override

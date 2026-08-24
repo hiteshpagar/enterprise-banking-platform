@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ebp.beneficiary.dto.BeneficiaryResponse;
+import com.ebp.beneficiary.entity.BeneficiaryStatus;
 import com.ebp.beneficiary.dto.CreateBeneficiaryRequest;
 import com.ebp.beneficiary.dto.CreateCustomerBeneficiaryRequest;
 import com.ebp.beneficiary.dto.UpdateBeneficiaryRequest;
@@ -47,11 +48,13 @@ public class BeneficiaryController {
     public Page<BeneficiaryResponse> getCurrentCustomerBeneficiaries(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) BeneficiaryStatus status,
             @AuthenticationPrincipal CustomUserDetails principal) {
 
         return beneficiaryService.getCurrentCustomerBeneficiaries(
                 page,
                 size,
+                status,
                 principal.getUsername());
     }
 

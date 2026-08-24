@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import type { AccountStatus } from "../../types/account";
+import type { AccountStatus } from "@/types/account";
 
 interface AccountStatusBadgeProps {
   status: AccountStatus;

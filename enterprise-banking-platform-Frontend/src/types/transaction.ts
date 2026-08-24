@@ -40,6 +40,13 @@ export interface TransactionPage {
   empty: boolean;
 }
 
+export interface TransactionListParams {
+  accountId?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+}
+
 export type ActivityKind = "DEPOSIT" | "WITHDRAWAL" | "TRANSFER_OUT" | "TRANSFER_IN";
 
 export interface CombinedActivityItem {

@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,197 +12,262 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-import { fetchAccounts } from "../../../services/accountService";
-import { addCustomerBeneficiary } from "../../../services/beneficiaryService";
-import type { AccountSummary } from "../../../types/account";
+import { Ionicons } from "@expo/vector-icons";
+import { addBeneficiary } from "@/services/beneficiaryService";
+import { Colors } from "@/constants/theme";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
+
+const INDIAN_BANKS = [
+  "HDFC Bank",
+  "State Bank of India (SBI)",
+  "ICICI Bank",
+  "Axis Bank",
+  "Kotak Mahindra Bank",
+  "Punjab National Bank (PNB)",
+  "Bank of Baroda",
+  "Canara Bank",
+  "Union Bank of India",
+  "IndusInd Bank",
+  "IDFC FIRST Bank",
+  "Yes Bank",
+  "Central Bank of India",
+  "Indian Bank",
+  "UCO Bank",
+  "Bank of India",
+  "Federal Bank",
+  "Other Bank (Enter custom name)",
+];
 
 export default function AddBeneficiaryScreen() {
-  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-  const [beneficiaryName, setBeneficiaryName] = useState("");
-  const [bankName, setBankName] = useState("");
+  const [name, setName] = useState("");
+  const [selectedBank, setSelectedBank] = useState("HDFC Bank");
+  const [customBankName, setCustomBankName] = useState("");
+  const [isCustomBank, setIsCustomBank] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+
   const [accountNumber, setAccountNumber] = useState("");
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [ifscCode, setIfscCode] = useState("");
 
-  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function loadAccounts() {
-      try {
-        const response = await fetchAccounts({ page: 0, size: 50 }, true);
-        setAccounts(response.content);
-        if (response.content.length > 0) {
-          setSelectedAccountId(response.content[0].id);
-        }
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load customer accounts."
-        );
-      } finally {
-        setIsLoadingAccounts(false);
-      }
+  const effectiveBankName = isCustomBank ? customBankName.trim() : selectedBank;
+
+  function handleSelectBank(bank: string) {
+    if (bank === "Other Bank (Enter custom name)") {
+      setIsCustomBank(true);
+      setSelectedBank("Other Bank");
+    } else {
+      setIsCustomBank(false);
+      setSelectedBank(bank);
     }
+    setShowBankModal(false);
+  }
 
-    loadAccounts();
-  }, []);
+  async function handleAdd() {
+    setError("");
 
-  async function handleSubmit() {
-    if (!selectedAccountId) {
-      setError("Please select a linked account.");
+    if (!name.trim()) {
+      setError("Beneficiary name is required.");
       return;
     }
-    if (!beneficiaryName.trim()) {
-      setError("Beneficiary name is required.");
+    if (isCustomBank && !customBankName.trim()) {
+      setError("Please enter your bank name.");
       return;
     }
     if (!accountNumber.trim()) {
       setError("Account number is required.");
       return;
     }
-
-    setError("");
-    setIsSubmitting(true);
+    if (accountNumber !== confirmAccountNumber) {
+      setError("Account numbers do not match.");
+      return;
+    }
+    if (!ifscCode.trim()) {
+      setError("IFSC Code is required.");
+      return;
+    }
 
     try {
-      await addCustomerBeneficiary({
-        accountId: selectedAccountId,
-        beneficiaryName: beneficiaryName.trim(),
-        bankName: bankName.trim() || undefined,
+      setIsSubmitting(true);
+      await addBeneficiary({
+        name: name.trim(),
+        bankName: effectiveBankName,
         accountNumber: accountNumber.trim(),
+        ifscCode: ifscCode.trim().toUpperCase(),
       });
-
       router.back();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to add beneficiary."
-      );
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Failed to add beneficiary.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  const filteredBanks = INDIAN_BANKS.filter((b) =>
+    b.toLowerCase().includes(bankSearch.toLowerCase())
+  );
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Cancel</Text>
-        </Pressable>
-        <Text style={styles.eyebrow}>New Beneficiary</Text>
-        <Text style={styles.title}>Add Beneficiary</Text>
-      </View>
+      <ScreenHeader title="Add Beneficiary" showBack={true} />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.mainWrapper}>
+            <View style={styles.formCard}>
+              <View style={styles.field}>
+                <Text style={styles.label}>Beneficiary Name</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter name"
+                  style={styles.input}
+                />
+              </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>1. Select Your Linked Account</Text>
-          {isLoadingAccounts ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color="#1D4ED8" />
-              <Text style={styles.loadingText}>Loading your accounts...</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Bank Name</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.pickerBox, pressed && styles.pickerPressed]}
+                  onPress={() => setShowBankModal(true)}
+                >
+                  <Text style={styles.pickerText}>{selectedBank}</Text>
+                  <Ionicons name="chevron-down" size={18} color={Colors.textSecondary} />
+                </Pressable>
+              </View>
+
+              {isCustomBank && (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Custom Bank Name</Text>
+                  <TextInput
+                    value={customBankName}
+                    onChangeText={setCustomBankName}
+                    placeholder="Enter your bank name"
+                    style={styles.input}
+                  />
+                </View>
+              )}
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Account Number</Text>
+                <TextInput
+                  value={accountNumber}
+                  onChangeText={setAccountNumber}
+                  placeholder="Enter account number"
+                  keyboardType="number-pad"
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Confirm Account Number</Text>
+                <TextInput
+                  value={confirmAccountNumber}
+                  onChangeText={setConfirmAccountNumber}
+                  placeholder="Re-enter account number"
+                  keyboardType="number-pad"
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>IFSC Code</Text>
+                <TextInput
+                  value={ifscCode}
+                  onChangeText={setIfscCode}
+                  placeholder="Enter IFSC code (e.g. HDFC0001234)"
+                  autoCapitalize="characters"
+                  style={styles.input}
+                />
+              </View>
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <Pressable
+                onPress={handleAdd}
+                disabled={isSubmitting}
+                style={({ pressed }) => [styles.submitBtn, pressed && styles.btnPressed]}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Add Beneficiary</Text>
+                )}
+              </Pressable>
             </View>
-          ) : accounts.length === 0 ? (
-            <Text style={styles.helperText}>
-              No active accounts found for your profile.
-            </Text>
-          ) : (
-            <View style={styles.accountPicker}>
-              {accounts.map((acct) => {
-                const isSelected = acct.id === selectedAccountId;
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Indian Banks Selection Modal */}
+      <Modal
+        visible={showBankModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBankModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowBankModal(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Bank</Text>
+              <Pressable onPress={() => setShowBankModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            {/* Bank Search Input */}
+            <View style={styles.searchBox}>
+              <Ionicons name="search-outline" size={18} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                value={bankSearch}
+                onChangeText={setBankSearch}
+                placeholder="Search bank name..."
+                style={styles.searchInput}
+              />
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {filteredBanks.map((bankNameOption, idx) => {
+                const isSelected = selectedBank === bankNameOption || (isCustomBank && bankNameOption.startsWith("Other"));
+                const isOther = bankNameOption.startsWith("Other");
                 return (
                   <Pressable
-                    key={acct.id}
-                    onPress={() => setSelectedAccountId(acct.id)}
-                    style={[
-                      styles.accountOption,
-                      isSelected && styles.accountOptionSelected,
-                    ]}
+                    key={idx}
+                    style={[styles.bankOptionCard, isSelected && styles.bankOptionActive]}
+                    onPress={() => handleSelectBank(bankNameOption)}
                   >
-                    <View style={styles.accountOptionInfo}>
-                      <Text style={styles.accountNumberText}>
-                        {acct.accountNumber} ({acct.accountType})
-                      </Text>
-                      <Text style={styles.accountBalanceText}>
-                        Balance: {acct.balance} {acct.currency}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.radioCircle,
-                        isSelected && styles.radioCircleSelected,
-                      ]}
-                    >
-                      {isSelected ? <View style={styles.radioInner} /> : null}
-                    </View>
+                    <Ionicons
+                      name={isOther ? "create-outline" : "business-outline"}
+                      size={20}
+                      color={isSelected ? Colors.actionBlue : Colors.textSecondary}
+                    />
+                    <Text style={[styles.bankOptionText, isSelected && styles.bankOptionTextActive]}>
+                      {bankNameOption}
+                    </Text>
+                    {isSelected && <Ionicons name="checkmark-circle" size={20} color={Colors.actionBlue} />}
                   </Pressable>
                 );
               })}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>2. Beneficiary Details</Text>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Beneficiary Full Name *</Text>
-            <TextInput
-              value={beneficiaryName}
-              onChangeText={setBeneficiaryName}
-              placeholder="e.g. Jane Doe"
-              style={styles.input}
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Bank Name</Text>
-            <TextInput
-              value={bankName}
-              onChangeText={setBankName}
-              placeholder="e.g. Apex Bank International"
-              style={styles.input}
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Beneficiary Account Number *</Text>
-            <TextInput
-              value={accountNumber}
-              onChangeText={setAccountNumber}
-              placeholder="e.g. 1234567890"
-              style={styles.input}
-              keyboardType="number-pad"
-              placeholderTextColor="#9CA3AF"
-            />
+            </ScrollView>
           </View>
         </View>
-
-        <Pressable
-          onPress={handleSubmit}
-          disabled={isSubmitting || isLoadingAccounts}
-          style={[
-            styles.submitButton,
-            (isSubmitting || isLoadingAccounts) && styles.submitButtonDisabled,
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.submitButtonText}>Save Beneficiary</Text>
-          )}
-        </Pressable>
-      </ScrollView>
+      </Modal>
     </View>
   );
 }
@@ -207,166 +275,159 @@ export default function AddBeneficiaryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: Colors.background,
   },
-  header: {
-    gap: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
     paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 18,
+    paddingTop: 16,
+  },
+  formCard: {
     backgroundColor: "#FFFFFF",
-  },
-  backButton: {
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "#EEF2F7",
-  },
-  backButtonText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  eyebrow: {
-    marginTop: 10,
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  title: {
-    color: "#111827",
-    fontSize: 26,
-    fontWeight: "800",
-  },
-  content: {
-    gap: 20,
+    borderRadius: 20,
     padding: 20,
-  },
-  errorBox: {
-    borderRadius: 8,
-    padding: 14,
-    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  errorText: {
-    color: "#991B1B",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  section: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
-    backgroundColor: "#FFFFFF",
-    gap: 14,
-  },
-  sectionTitle: {
-    color: "#111827",
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-  },
-  loadingText: {
-    color: "#6B7280",
-    fontSize: 14,
-  },
-  helperText: {
-    color: "#6B7280",
-    fontSize: 14,
-  },
-  accountPicker: {
-    gap: 10,
-  },
-  accountOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#F9FAFB",
-  },
-  accountOptionSelected: {
-    borderColor: "#1D4ED8",
-    backgroundColor: "#EFF6FF",
-  },
-  accountOptionInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  accountNumberText: {
-    color: "#111827",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  accountBalanceText: {
-    color: "#6B7280",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  radioCircle: {
-    height: 20,
-    width: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioCircleSelected: {
-    borderColor: "#1D4ED8",
-  },
-  radioInner: {
-    height: 10,
-    width: 10,
-    borderRadius: 5,
-    backgroundColor: "#1D4ED8",
+    borderColor: Colors.border,
+    gap: 16,
   },
   field: {
     gap: 6,
   },
   label: {
-    color: "#374151",
     fontSize: 13,
     fontWeight: "700",
+    color: Colors.textPrimary,
   },
   input: {
     height: 48,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
+    borderColor: Colors.border,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    color: "#111827",
     fontSize: 15,
+    color: Colors.textPrimary,
     backgroundColor: "#FFFFFF",
   },
-  submitButton: {
-    height: 50,
+  pickerBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 48,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#FFFFFF",
+  },
+  pickerPressed: {
+    backgroundColor: Colors.lightBlue,
+  },
+  pickerText: {
+    fontSize: 15,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.danger,
+  },
+  submitBtn: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: Colors.actionBlue,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
-    backgroundColor: "#1D4ED8",
-    marginTop: 10,
+    marginTop: 8,
   },
-  submitButtonDisabled: {
-    opacity: 0.6,
+  btnPressed: {
+    opacity: 0.9,
   },
-  submitButtonText: {
+  submitBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+  },
+  modalBackdrop: {
+    flex: 1,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.background,
+    marginBottom: 14,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  bankOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 8,
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  bankOptionActive: {
+    borderColor: Colors.actionBlue,
+    backgroundColor: Colors.lightBlue,
+  },
+  bankOptionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  bankOptionTextActive: {
+    fontWeight: "700",
+    color: Colors.actionBlue,
   },
 });

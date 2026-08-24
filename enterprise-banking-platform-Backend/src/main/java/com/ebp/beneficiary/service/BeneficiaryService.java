@@ -8,6 +8,7 @@ import com.ebp.beneficiary.dto.BeneficiaryResponse;
 import com.ebp.beneficiary.dto.CreateBeneficiaryRequest;
 import com.ebp.beneficiary.dto.CreateCustomerBeneficiaryRequest;
 import com.ebp.beneficiary.dto.UpdateBeneficiaryRequest;
+import com.ebp.beneficiary.entity.BeneficiaryStatus;
 
 public interface BeneficiaryService {
 
@@ -32,7 +33,15 @@ public interface BeneficiaryService {
     Page<BeneficiaryResponse> getCurrentCustomerBeneficiaries(
             int page,
             int size,
+            BeneficiaryStatus status,
             String username);
+
+    default Page<BeneficiaryResponse> getCurrentCustomerBeneficiaries(
+            int page,
+            int size,
+            String username) {
+        return getCurrentCustomerBeneficiaries(page, size, null, username);
+    }
 
     BeneficiaryResponse createCustomerBeneficiary(
             CreateCustomerBeneficiaryRequest request,

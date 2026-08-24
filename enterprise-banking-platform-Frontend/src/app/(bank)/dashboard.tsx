@@ -1,72 +1,216 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  StatusBar,
+} from "react-native";
 import { router, type Href } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/context/AuthContext";
+import { Colors } from "@/constants/theme";
+import { MetricCard } from "@/components/common/MetricCard";
+import { QuickActionButton } from "@/components/common/QuickActionButton";
+import { BottomNavBar } from "@/components/common/BottomNavBar";
+import { SidebarDrawer } from "@/components/common/SidebarDrawer";
+import { fetchCustomers } from "@/services/customerService";
+import { fetchAccounts } from "@/services/accountService";
+import type { AccountSummary } from "@/types/account";
+
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) {
+    return "Good Morning,";
+  } else if (hour >= 12 && hour < 17) {
+    return "Good Afternoon,";
+  } else {
+    return "Good Evening,";
+  }
+}
+
+function formatRoleName(role?: string): string {
+  if (!role) return "Bank Officer";
+  const cleaned = role.replace(/^ROLE_/, "").replace(/_/g, " ");
+  return cleaned
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
 
 export default function BankDashboard() {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout } = useAuth();
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  const [totalCustomers, setTotalCustomers] = useState<number | null>(null);
+  const [totalAccountsCount, setTotalAccountsCount] = useState<number | null>(null);
+  const [recentAccounts, setRecentAccounts] = useState<AccountSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadBankData() {
+      setIsLoading(true);
+      try {
+        const [custRes, accRes] = await Promise.allSettled([
+          fetchCustomers({ page: 0, size: 1 }),
+          fetchAccounts({ page: 0, size: 5 }, false),
+        ]);
+
+        if (custRes.status === "fulfilled") {
+          setTotalCustomers(custRes.value.totalElements ?? null);
+        }
+        if (accRes.status === "fulfilled") {
+          setTotalAccountsCount(accRes.value.totalElements ?? null);
+          setRecentAccounts(accRes.value.content || []);
+        }
+      } catch (err) {
+        console.error("Bank dashboard load error", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadBankData();
+  }, []);
+
+  const userName = user?.username || "";
+  const rawRole = user?.roles?.length ? user.roles[0] : "Bank Officer";
+  const formattedRole = formatRoleName(rawRole);
+
+  const totalDepositAmount = recentAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Bank / Staff</Text>
-        <Text style={styles.title}>Bank Dashboard</Text>
-        <Text style={styles.subtitle}>Signed in as {user?.username}</Text>
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
 
-      <View style={styles.panel}>
-        <Text style={styles.sectionLabel}>Roles</Text>
-        <Text style={styles.value}>
-          {user?.roles.join(", ") || "No roles assigned"}
-        </Text>
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.mainWrapper}>
+          {/* Header Bar */}
+          <View style={styles.topHeader}>
+            <View style={styles.headerLeft}>
+              <Pressable style={styles.drawerButton} onPress={() => setDrawerVisible(true)}>
+                <Ionicons name="menu" size={24} color={Colors.primary} />
+              </Pressable>
+              <View style={styles.greetingWrapper}>
+                <Text style={styles.greetingTitle}>{getTimeGreeting()}</Text>
+                <View style={styles.userRow}>
+                  <Text style={styles.userNameText}>{userName}</Text>
+                  <View style={styles.roleBadge}>
+                    <Text style={styles.userRoleText}>{formattedRole}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
 
-      <View style={styles.panel}>
-        <Text style={styles.sectionLabel}>Available Actions</Text>
+            <View style={styles.headerRight}>
+              <Pressable style={styles.iconCircle}>
+                <Ionicons name="notifications-outline" size={20} color={Colors.textPrimary} />
+              </Pressable>
+            </View>
+          </View>
 
-        {hasPermission("ACCOUNT_CREATE") ? (
-          <Pressable
-            onPress={() => router.push("/(bank)/accounts/new" as Href)}
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionButtonText}>Create Account</Text>
-          </Pressable>
-        ) : null}
+          {/* Metric Overview Grid (2x2) */}
+          <View style={styles.metricGrid}>
+            <View style={styles.metricRow}>
+              <MetricCard
+                label="Total Customers"
+                value={totalCustomers !== null ? totalCustomers.toLocaleString("en-IN") : "-"}
+                icon="people"
+                variant="blue"
+                onPress={() => router.push("/(bank)/customers" as Href)}
+              />
+              <MetricCard
+                label="Total Accounts"
+                value={totalAccountsCount !== null ? totalAccountsCount.toLocaleString("en-IN") : "-"}
+                icon="folder-open"
+                variant="blue"
+                onPress={() => router.push("/(bank)/accounts" as Href)}
+              />
+            </View>
+            <View style={styles.metricRow}>
+              <MetricCard
+                label="Sample Balance Sum"
+                value={`₹${totalDepositAmount.toLocaleString("en-IN")}.00`}
+                icon="wallet"
+                variant="dark"
+              />
+              <MetricCard
+                label="Total Loans"
+                value="-"
+                icon="cash"
+                variant="dark"
+              />
+            </View>
+          </View>
 
-        {hasPermission("ACCOUNT_VIEW") ? (
-          <Pressable
-            onPress={() => router.push("/accounts" as Href)}
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionButtonText}>View Accounts</Text>
-          </Pressable>
-        ) : null}
+          {/* Quick Actions */}
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickGrid}>
+            <QuickActionButton
+              label="Add Customer"
+              icon="person-add"
+              onPress={() => router.push("/(bank)/customers/new" as Href)}
+            />
+            <QuickActionButton
+              label="Create Account"
+              icon="add-circle"
+              onPress={() => router.push("/(bank)/accounts/new" as Href)}
+            />
+            <QuickActionButton
+              label="Fund Transfer"
+              icon="swap-horizontal"
+              onPress={() => router.push("/(bank)/fund-transfer" as Href)}
+            />
+            <QuickActionButton
+              label="Reports"
+              icon="bar-chart"
+              onPress={() => router.push("/(bank)/reports" as Href)}
+            />
+          </View>
 
-        {hasPermission("CUSTOMER_CREATE") ? (
-          <Pressable
-            onPress={() => router.push("/customers/new" as Href)}
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionButtonText}>Create Customer</Text>
-          </Pressable>
-        ) : null}
+          {/* Recent Accounts / Activities */}
+          <View style={styles.recentHeader}>
+            <Text style={styles.sectionTitle}>Recent Accounts</Text>
+            <Pressable onPress={() => router.push("/(bank)/accounts" as Href)}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </Pressable>
+          </View>
 
-        {hasPermission("USER_VIEW") ? (
-          <Text style={styles.actionText}>View Users</Text>
-        ) : null}
+          <View style={styles.activityList}>
+            {isLoading ? (
+              <ActivityIndicator color={Colors.actionBlue} size="large" style={{ marginVertical: 14 }} />
+            ) : recentAccounts.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No recent accounts found</Text>
+              </View>
+            ) : (
+              recentAccounts.map((acc) => (
+                <View key={acc.id} style={styles.activityCard}>
+                  <View style={[styles.activityIconCircle, { backgroundColor: Colors.lightBlue }]}>
+                    <Ionicons name="card-outline" size={20} color={Colors.actionBlue} />
+                  </View>
+                  <View style={styles.activityDetails}>
+                    <Text style={styles.activityTitle}>{acc.customerName || `Account ${acc.accountNumber}`}</Text>
+                    <Text style={styles.activitySub}>{acc.accountType} • {acc.accountNumber}</Text>
+                  </View>
+                  <Text style={styles.activityTime}>₹{(acc.balance || 0).toLocaleString("en-IN")}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        </View>
+      </ScrollView>
 
-        {!hasPermission("ACCOUNT_VIEW") &&
-        !hasPermission("ACCOUNT_CREATE") &&
-        !hasPermission("CUSTOMER_CREATE") &&
-        !hasPermission("USER_VIEW") ? (
-          <Text style={styles.mutedText}>
-            No staff actions are available for your permissions.
-          </Text>
-        ) : null}
-      </View>
+      {/* Slide-out Menu Drawer */}
+      <SidebarDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        user={{ name: userName, role: formattedRole }}
+        onLogout={logout}
+      />
 
-      <Pressable onPress={logout} style={styles.logoutButton}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
-      </Pressable>
+      <BottomNavBar type="bank" />
     </View>
   );
 }
@@ -74,79 +218,163 @@ export default function BankDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    gap: 18,
-    paddingHorizontal: 24,
-    paddingTop: 72,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: Colors.background,
   },
-  header: {
-    gap: 6,
+  scrollContent: {
+    paddingBottom: 24,
   },
-  eyebrow: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingTop: 50,
   },
-  title: {
-    color: "#111827",
-    fontSize: 30,
-    fontWeight: "800",
+  topHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  subtitle: {
-    color: "#4B5563",
-    fontSize: 16,
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  panel: {
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 18,
+  drawerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  sectionLabel: {
-    color: "#6B7280",
+  greetingWrapper: {
+    justifyContent: "center",
+  },
+  greetingTitle: {
     fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  userNameText: {
+    fontSize: 18,
     fontWeight: "800",
-    textTransform: "uppercase",
+    color: Colors.textPrimary,
   },
-  value: {
-    color: "#111827",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  actionText: {
-    color: "#111827",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  actionButton: {
-    alignSelf: "flex-start",
+  roleBadge: {
+    backgroundColor: Colors.lightBlue,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    backgroundColor: "#1D4ED8",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
   },
-  actionButtonText: {
-    color: "#FFFFFF",
+  userRoleText: {
+    fontSize: 11,
+    color: Colors.actionBlue,
+    fontWeight: "700",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  metricGrid: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  metricRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: 14,
+  },
+  quickGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 24,
+  },
+  recentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  viewAllText: {
     fontSize: 14,
-    fontWeight: "800",
-  },
-  mutedText: {
-    color: "#6B7280",
-    fontSize: 15,
-  },
-  logoutButton: {
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    backgroundColor: "#111827",
-  },
-  logoutButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
     fontWeight: "700",
+    color: Colors.actionBlue,
+  },
+  activityList: {
+    gap: 12,
+  },
+  activityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  activityIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  activityDetails: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  activitySub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  activityTime: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontWeight: "700",
+  },
+  emptyCard: {
+    padding: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emptyText: {
+    color: Colors.textSecondary,
+    fontSize: 14,
   },
 });

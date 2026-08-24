@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { Beneficiary } from "../../types/beneficiary";
+import type { Beneficiary } from "@/types/beneficiary";
 import { BeneficiaryStatusBadge } from "../beneficiaries/BeneficiaryStatusBadge";
 
 interface BeneficiaryPickerProps {
@@ -13,12 +13,16 @@ export function BeneficiaryPicker({
   selectedBeneficiaryId,
   onSelect,
 }: BeneficiaryPickerProps) {
-  if (beneficiaries.length === 0) {
+  const activeBeneficiaries = beneficiaries.filter(
+    (b) => b.status === "ACTIVE"
+  );
+
+  if (activeBeneficiaries.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>No Beneficiaries Found</Text>
+        <Text style={styles.emptyTitle}>No Active Beneficiaries Found</Text>
         <Text style={styles.emptyText}>
-          You must add a beneficiary before initiating a fund transfer.
+          You must have an active beneficiary before initiating a fund transfer.
         </Text>
       </View>
     );
@@ -27,7 +31,7 @@ export function BeneficiaryPicker({
   return (
     <View style={styles.container}>
       <Text style={styles.sectionHeader}>Select Beneficiary</Text>
-      {beneficiaries.map((beneficiary) => {
+      {activeBeneficiaries.map((beneficiary) => {
         const isSelected = beneficiary.id === selectedBeneficiaryId;
 
         return (

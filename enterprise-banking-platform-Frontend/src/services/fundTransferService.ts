@@ -2,17 +2,34 @@ import {
   createTransfer as createTransferApi,
   getTransferById as getTransferByIdApi,
   getTransfersByAccount as getTransfersByAccountApi,
-} from "../api/fundTransfers";
+} from "@/api/fundTransfers";
 import type {
   CreateTransferRequest,
   TransferPage,
   TransferResponse,
-} from "../types/fundTransfer";
+} from "@/types/fundTransfer";
 
 export async function initiateTransfer(
   request: CreateTransferRequest
 ): Promise<TransferResponse> {
   return createTransferApi(request);
+}
+
+export async function executeFundTransfer(
+  request: {
+    sourceAccountId: string;
+    targetAccountId: string;
+    amount: number;
+    transferType?: string;
+    remarks?: string;
+  }
+): Promise<TransferResponse> {
+  return createTransferApi({
+    sourceAccountId: request.sourceAccountId,
+    destinationAccountId: request.targetAccountId,
+    amount: request.amount,
+    description: request.remarks,
+  });
 }
 
 export async function fetchTransferDetails(

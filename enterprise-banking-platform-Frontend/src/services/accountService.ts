@@ -4,14 +4,14 @@ import {
   createAccount,
   getCurrentCustomerAccountById,
   getCurrentCustomerAccounts,
-} from "../api/accounts";
+} from "@/api/accounts";
 
 import type {
   Account,
   AccountListParams,
   AccountPage,
   CreateAccountRequest,
-} from "../types/account";
+} from "@/types/account";
 
 export async function fetchAccounts(
   params: AccountListParams = {},

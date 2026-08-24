@@ -1,218 +1,166 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
   Pressable,
-  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { fetchAccounts } from "@/services/accountService";
+import { fetchCombinedAccountActivity, fetchTransactions } from "@/services/transactionService";
+import { Colors } from "@/constants/theme";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
+import { BottomNavBar } from "@/components/common/BottomNavBar";
 
-import { fetchAccounts } from "../../../services/accountService";
-import { fetchCombinedAccountActivity } from "../../../services/transactionService";
+interface TransactionItem {
+  id: string;
+  type: "CREDIT" | "DEBIT";
+  title: string;
+  date: string;
+  amount: number;
+}
 
-import type { AccountSummary } from "../../../types/account";
-import type { CombinedActivityItem } from "../../../types/transaction";
-import { ActivityItemCard } from "../../../components/transactions/ActivityItemCard";
-
-export default function TransactionHistoryScreen() {
-  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<AccountSummary | null>(null);
-
-  const [filterType, setFilterType] = useState<"ALL" | "TRANSFERS" | "DEPOSITS" | "WITHDRAWALS">("ALL");
-
-  const [activityItems, setActivityItems] = useState<CombinedActivityItem[]>([]);
+export default function CustomerTransactionsScreen() {
+  const [filter, setFilter] = useState<"ALL" | "CREDIT" | "DEBIT">("ALL");
+  const [items, setItems] = useState<TransactionItem[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState("");
 
-  const loadAccounts = useCallback(async () => {
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const accResponse = await fetchAccounts({ page: 0, size: 50 }, true);
-      const active = accResponse.content;
-      setAccounts(active);
-      if (active.length > 0) {
-        setSelectedAccount(active[0]);
+      const accRes = await fetchAccounts({ page: 0, size: 20 });
+      const customerAccounts = accRes.content || [];
+      const parsedItems: TransactionItem[] = [];
+
+      if (customerAccounts.length > 0) {
+        const activityPromises = customerAccounts.map((acc) =>
+          fetchCombinedAccountActivity(acc.id, acc.accountNumber, 0, 50)
+        );
+        const results = await Promise.allSettled(activityPromises);
+
+        results.forEach((res) => {
+          if (res.status === "fulfilled" && res.value.items) {
+            res.value.items.forEach((item) => {
+              const isCredit = item.kind === "DEPOSIT" || item.kind === "TRANSFER_IN";
+              parsedItems.push({
+                id: item.id,
+                type: isCredit ? "CREDIT" : "DEBIT",
+                title: item.reference || (isCredit ? "Deposit / Received" : "Fund Transfer"),
+                date: item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-IN") : "",
+                amount: item.amount,
+              });
+            });
+          }
+        });
       }
+
+      if (parsedItems.length === 0) {
+        const fallbackRes = await fetchTransactions({ page: 0, size: 50 });
+        if (fallbackRes.content?.length) {
+          fallbackRes.content.forEach((t) => {
+            const isCredit = t.transactionType === "DEPOSIT";
+            parsedItems.push({
+              id: t.id,
+              type: isCredit ? "CREDIT" : "DEBIT",
+              title: t.transactionReference || (isCredit ? "Deposit" : "Withdrawal"),
+              date: t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-IN") : "",
+              amount: t.amount,
+            });
+          });
+        }
+      }
+
+      setItems(parsedItems);
+      setTotalElements(parsedItems.length);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load customer accounts."
-      );
+      console.error("Transaction history load error", err);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const loadActivity = useCallback(async () => {
-    if (!selectedAccount) return;
-
-    setError("");
-    setIsLoading(true);
-
-    try {
-      const result = await fetchCombinedAccountActivity(
-        selectedAccount.id,
-        selectedAccount.accountNumber,
-        0,
-        20
-      );
-
-      setActivityItems(result.items);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load transaction history."
-      );
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [selectedAccount]);
-
   useEffect(() => {
-    loadAccounts();
-  }, [loadAccounts]);
+    loadData();
+  }, [loadData]);
 
-  useEffect(() => {
-    if (selectedAccount) {
-      loadActivity();
-    }
-  }, [selectedAccount, loadActivity]);
-
-  function handleRefresh() {
-    setIsRefreshing(true);
-    loadActivity();
-  }
-
-  const filteredItems = activityItems.filter((item) => {
-    if (filterType === "TRANSFERS") {
-      return item.kind === "TRANSFER_OUT" || item.kind === "TRANSFER_IN";
-    }
-    if (filterType === "DEPOSITS") {
-      return item.kind === "DEPOSIT";
-    }
-    if (filterType === "WITHDRAWALS") {
-      return item.kind === "WITHDRAWAL";
-    }
+  const filteredItems = items.filter((item) => {
+    if (filter === "CREDIT") return item.type === "CREDIT";
+    if (filter === "DEBIT") return item.type === "DEBIT";
     return true;
   });
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>Back</Text>
-          </Pressable>
+      <ScreenHeader title="Transaction History" showBack={true} />
 
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>Activity</Text>
-            <Text style={styles.title}>Transaction History</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.mainWrapper}>
+          {/* Segmented Filter Pills */}
+          <View style={styles.segmentedContainer}>
+            {(["ALL", "CREDIT", "DEBIT"] as const).map((tab) => (
+              <Pressable
+                key={tab}
+                style={[styles.segmentBtn, filter === tab && styles.segmentBtnActive]}
+                onPress={() => setFilter(tab)}
+              >
+                <Text style={[styles.segmentText, filter === tab && styles.segmentTextActive]}>
+                  {tab === "ALL" ? "All" : tab === "CREDIT" ? "Credit" : "Debit"}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-        </View>
 
-        {/* ACCOUNT SELECTION PILLS */}
-        {accounts.length > 0 && (
-          <View style={styles.accountSelectorWrapper}>
-            <Text style={styles.selectorLabel}>Account:</Text>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={accounts}
-              keyExtractor={(acc) => acc.id}
-              contentContainerStyle={styles.pillsContainer}
-              renderItem={({ item: acc }) => {
-                const isSelected = acc.id === selectedAccount?.id;
-                return (
-                  <Pressable
-                    onPress={() => setSelectedAccount(acc)}
-                    style={[
-                      styles.accountPill,
-                      isSelected && styles.selectedAccountPill,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.accountPillText,
-                        isSelected && styles.selectedAccountPillText,
-                      ]}
-                    >
-                      {acc.accountNumber} ({acc.currency} {acc.balance.toFixed(2)})
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
-        )}
-
-        {/* FILTER TABS */}
-        <View style={styles.filterRow}>
-          {(["ALL", "TRANSFERS", "DEPOSITS", "WITHDRAWALS"] as const).map(
-            (tab) => {
-              const isSelected = filterType === tab;
-              return (
-                <Pressable
-                  key={tab}
-                  onPress={() => setFilterType(tab)}
-                  style={[styles.filterTab, isSelected && styles.selectedFilterTab]}
-                >
-                  <Text
-                    style={[
-                      styles.filterTabText,
-                      isSelected && styles.selectedFilterTabText,
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </Pressable>
-              );
-            }
-          )}
-        </View>
-      </View>
-
-      {/* CONTENT LIST */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1D4ED8" />
-          <Text style={styles.loadingText}>Fetching activity...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Error</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={loadActivity} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredItems}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor="#1D4ED8"
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>No Activity Found</Text>
-              <Text style={styles.emptySubtitle}>
-                There are no transactions or transfers recorded for this filter.
-              </Text>
+          {/* Transactions List */}
+          {isLoading ? (
+            <ActivityIndicator color={Colors.actionBlue} size="large" style={{ marginVertical: 30 }} />
+          ) : filteredItems.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="receipt-outline" size={40} color={Colors.textSecondary} />
+              <Text style={styles.emptyTitle}>No transaction history found</Text>
             </View>
-          }
-          renderItem={({ item }) => <ActivityItemCard item={item} />}
-        />
-      )}
+          ) : (
+            <View style={styles.list}>
+              {filteredItems.map((item, idx) => {
+                const isCredit = item.type === "CREDIT";
+                return (
+                  <View key={item.id || idx} style={styles.txCard}>
+                    <View style={[styles.iconBadge, isCredit ? styles.creditBadge : styles.debitBadge]}>
+                      <Ionicons
+                        name={isCredit ? "arrow-down" : "arrow-up"}
+                        size={20}
+                        color={isCredit ? Colors.success : Colors.danger}
+                      />
+                    </View>
+
+                    <View style={styles.txDetails}>
+                      <Text style={styles.txTitle} numberOfLines={1} ellipsizeMode="middle">
+                        {item.title}
+                      </Text>
+                      <Text style={styles.txDate}>{item.date}</Text>
+                    </View>
+
+                    <Text style={[styles.txAmount, isCredit ? styles.creditAmount : styles.debitAmount]}>
+                      {isCredit ? "+" : "-"} ₹{item.amount.toLocaleString("en-IN")}.00
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {filteredItems.length > 0 ? (
+            <Text style={styles.footerCount}>
+              Showing 1 - {filteredItems.length} of {totalElements || filteredItems.length} transactions
+            </Text>
+          ) : null}
+        </View>
+      </ScrollView>
+
+      <BottomNavBar type="customer" />
     </View>
   );
 }
@@ -220,164 +168,112 @@ export default function TransactionHistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: Colors.background,
   },
-  header: {
-    gap: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
     paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 16,
-    backgroundColor: "#FFFFFF",
+    paddingTop: 16,
   },
-  headerRow: {
+  segmentedContainer: {
     flexDirection: "row",
+    backgroundColor: Colors.lightBlue,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 10,
     alignItems: "center",
-    gap: 14,
+    borderRadius: 9,
   },
-  backButton: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "#EEF2F7",
+  segmentBtnActive: {
+    backgroundColor: Colors.actionBlue,
   },
-  backButtonText: {
-    color: "#111827",
+  segmentText: {
     fontSize: 14,
     fontWeight: "700",
+    color: Colors.textSecondary,
   },
-  headerCopy: {
-    flex: 1,
+  segmentTextActive: {
+    color: "#FFFFFF",
   },
-  eyebrow: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
+  list: {
+    gap: 12,
+    marginBottom: 20,
   },
-  title: {
-    marginTop: 2,
-    color: "#111827",
-    fontSize: 26,
-    fontWeight: "800",
-  },
-  accountSelectorWrapper: {
+  txCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  selectorLabel: {
+  iconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  creditBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+  debitBadge: {
+    backgroundColor: "#FEE2E2",
+  },
+  txDetails: {
+    flex: 1,
+    marginRight: 8,
+  },
+  txTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#6B7280",
+    color: Colors.textPrimary,
   },
-  pillsContainer: {
-    gap: 8,
-  },
-  accountPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  selectedAccountPill: {
-    backgroundColor: "#1D4ED8",
-    borderColor: "#1D4ED8",
-  },
-  accountPillText: {
+  txDate: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#4B5563",
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
-  selectedAccountPillText: {
-    color: "#FFFFFF",
-  },
-  filterRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: 4,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-  },
-  selectedFilterTab: {
-    backgroundColor: "#1E293B",
-  },
-  filterTabText: {
-    fontSize: 11,
+  txAmount: {
+    fontSize: 15,
     fontWeight: "800",
-    color: "#6B7280",
   },
-  selectedFilterTabText: {
-    color: "#FFFFFF",
+  creditAmount: {
+    color: Colors.success,
   },
-  listContent: {
-    padding: 20,
+  debitAmount: {
+    color: Colors.danger,
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    gap: 10,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#DC2626",
-  },
-  errorText: {
-    fontSize: 14,
-    color: "#4B5563",
-    textAlign: "center",
-  },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: "#1D4ED8",
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: "center",
-    justifyContent: "center",
+  emptyCard: {
+    padding: 30,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 6,
+    borderRadius: 16,
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#111827",
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.textSecondary,
   },
-  emptySubtitle: {
-    fontSize: 13,
-    color: "#6B7280",
+  footerCount: {
     textAlign: "center",
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+    marginTop: 10,
   },
 });

@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { AccountSummary } from "../../types/account";
+import type { AccountSummary } from "@/types/account";
 import { AccountStatusBadge } from "./AccountStatusBadge";
 
 interface AccountCardProps {

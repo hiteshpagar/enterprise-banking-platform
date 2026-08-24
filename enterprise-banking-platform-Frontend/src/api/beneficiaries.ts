@@ -2,16 +2,25 @@ import { apiRequest } from "./client";
 import type {
   Beneficiary,
   BeneficiaryPage,
+  BeneficiaryStatus,
   CreateCustomerBeneficiaryRequest,
   UpdateBeneficiaryRequest,
-} from "../types/beneficiary";
+} from "@/types/beneficiary";
 
 export async function getCurrentCustomerBeneficiaries(
   page = 0,
-  size = 10
+  size = 10,
+  status?: BeneficiaryStatus
 ): Promise<BeneficiaryPage> {
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    size: size.toString(),
+  });
+  if (status) {
+    queryParams.append("status", status);
+  }
   return apiRequest<BeneficiaryPage>(
-    `/beneficiaries/me?page=${page}&size=${size}`,
+    `/beneficiaries/me?${queryParams.toString()}`,
     {
       method: "GET",
     },

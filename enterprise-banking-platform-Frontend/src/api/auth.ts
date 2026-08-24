@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { CurrentUserResponse } from "../types/auth";
+import type { CurrentUserResponse } from "@/types/auth";
 
 export interface LoginRequest {
   username: string;

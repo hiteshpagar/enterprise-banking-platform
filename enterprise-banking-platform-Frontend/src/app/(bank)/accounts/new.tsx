@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,487 +11,448 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-
-import { fetchCustomers } from "../../../services/customerService";
-import { openAccount } from "../../../services/accountService";
-
-import type {
-  CustomerSummary,
-  CustomerPage,
-} from "../../../types/customer";
-
-import type {
-  AccountType,
-  CreateAccountRequest,
-} from "../../../types/account";
-
-const ACCOUNT_TYPES: AccountType[] = [
-  "SAVINGS",
-  "CURRENT",
-  "SALARY",
-];
+import { Ionicons } from "@expo/vector-icons";
+import { openAccount } from "@/services/accountService";
+import { fetchCustomers } from "@/services/customerService";
+import type { CustomerSummary } from "@/types/customer";
+import { Colors } from "@/constants/theme";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
+import { StepIndicator } from "@/components/common/StepIndicator";
 
 export default function CreateAccountScreen() {
+  const [step, setStep] = useState(1);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<CustomerSummary | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
+  const [accountType, setAccountType] = useState<"SAVINGS" | "CURRENT">("SAVINGS");
+  const [initialDeposit, setInitialDeposit] = useState("");
+  const [currency] = useState("INR");
 
-  const [accountType, setAccountType] =
-    useState<AccountType>("SAVINGS");
-
-  const [currency, setCurrency] = useState("INR");
-  const [openingBalance, setOpeningBalance] = useState("");
-
-  const [isLoadingCustomers, setIsLoadingCustomers] =
-    useState(true);
-
-  const [isCreating, setIsCreating] = useState(false);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    loadCustomers();
+    async function loadCustomersList() {
+      setIsLoadingCustomers(true);
+      try {
+        const res = await fetchCustomers({ page: 0, size: 50 });
+        const list = res.content || [];
+        setCustomers(list);
+        if (list.length > 0) {
+          setSelectedCustomer(list[0]);
+        }
+      } catch (err) {
+        console.error("Customers list load error", err);
+      } finally {
+        setIsLoadingCustomers(false);
+      }
+    }
+    loadCustomersList();
   }, []);
 
-  async function loadCustomers() {
-    setIsLoadingCustomers(true);
-    setError("");
-
-    try {
-      const response: CustomerPage = await fetchCustomers({
-        page: 0,
-        size: 100,
-        sortBy: "firstName",
-      });
-
-      setCustomers(response.content);
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to load customers."
-      );
-    } finally {
-      setIsLoadingCustomers(false);
-    }
-  }
-
   async function handleCreateAccount() {
-    setError("");
-    setSuccess("");
-
     if (!selectedCustomer) {
       setError("Please select a customer.");
       return;
     }
 
-    if (!currency.trim()) {
-      setError("Currency is required.");
-      return;
-    }
-
-    if (!openingBalance.trim()) {
-      setError("Opening balance is required.");
-      return;
-    }
-
-    const balance = Number(openingBalance);
-
-    if (Number.isNaN(balance) || balance < 0) {
-      setError("Opening balance must be a valid non-negative number.");
-      return;
-    }
-
-    const request: CreateAccountRequest = {
-      customerId: selectedCustomer.id,
-      accountType,
-      currency: currency.trim().toUpperCase(),
-      openingBalance: balance,
-    };
-
-    setIsCreating(true);
-
+    setError("");
     try {
-      const account = await openAccount(request);
-
-      setSuccess(
-        `Account ${account.accountNumber} created successfully for ${selectedCustomer.firstName} ${selectedCustomer.lastName}.`
-      );
-
-      setOpeningBalance("");
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to create account."
-      );
+      setIsSubmitting(true);
+      await openAccount({
+        customerId: selectedCustomer.id,
+        accountType,
+        currency,
+        openingBalance: parseFloat(initialDeposit || "0"),
+      });
+      router.back();
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError("Failed to create account.");
     } finally {
-      setIsCreating(false);
+      setIsSubmitting(false);
     }
   }
 
+  const steps = [
+    { number: 1, label: "Customer" },
+    { number: 2, label: "Account Details" },
+    { number: 3, label: "Review" },
+  ];
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Text style={styles.backButtonText}>Back</Text>
-        </Pressable>
+    <View style={styles.container}>
+      <ScreenHeader title="Create New Account" showBack={true} />
 
-        <Text style={styles.eyebrow}>Bank / Staff</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.mainWrapper}>
+            <StepIndicator steps={steps} currentStep={step} />
 
-        <Text style={styles.title}>
-          Create Account
-        </Text>
+            <View style={styles.formCard}>
+              {step === 1 && (
+                <>
+                  <Text style={styles.label}>Select Customer</Text>
+                  {isLoadingCustomers ? (
+                    <ActivityIndicator color={Colors.actionBlue} style={{ marginVertical: 20 }} />
+                  ) : customers.length === 0 ? (
+                    <View style={styles.emptyNotice}>
+                      <Text style={styles.emptyNoticeText}>No customers available. Please create a customer record first.</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.customerSelectList}>
+                      {customers.map((c) => {
+                        const isSelected = selectedCustomer?.id === c.id;
+                        const name = `${c.firstName} ${c.lastName}`;
+                        return (
+                          <Pressable
+                            key={c.id}
+                            style={[styles.customerOptionCard, isSelected && styles.customerOptionSelected]}
+                            onPress={() => setSelectedCustomer(c)}
+                          >
+                            <View style={styles.radioDot}>
+                              {isSelected && <View style={styles.radioDotInner} />}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.customerOptionName}>{name}</Text>
+                              <Text style={styles.customerOptionSub}>{c.customerNumber} • {c.email || c.mobileNumber || ""}</Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
 
-        <Text style={styles.subtitle}>
-          Open a banking account for an existing customer.
-        </Text>
-      </View>
+                  <Pressable
+                    style={[styles.nextBtn, !selectedCustomer && styles.btnDisabled]}
+                    onPress={() => {
+                      if (selectedCustomer) setStep(2);
+                    }}
+                    disabled={!selectedCustomer}
+                  >
+                    <Text style={styles.nextBtnText}>Next</Text>
+                  </Pressable>
+                </>
+              )}
 
-      {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
+              {step === 2 && (
+                <>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Account Type</Text>
+                    <View style={styles.radioRow}>
+                      <Pressable
+                        style={[styles.radioBtn, accountType === "SAVINGS" && styles.radioActive]}
+                        onPress={() => setAccountType("SAVINGS")}
+                      >
+                        <Text style={[styles.radioText, accountType === "SAVINGS" && styles.radioTextActive]}>
+                          Savings Account
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.radioBtn, accountType === "CURRENT" && styles.radioActive]}
+                        onPress={() => setAccountType("CURRENT")}
+                      >
+                        <Text style={[styles.radioText, accountType === "CURRENT" && styles.radioTextActive]}>
+                          Current Account
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
 
-      {success ? (
-        <View style={styles.successBox}>
-          <Text style={styles.successText}>{success}</Text>
-        </View>
-      ) : null}
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Initial Deposit Amount</Text>
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.currencySymbol}>₹</Text>
+                      <TextInput
+                        value={initialDeposit}
+                        onChangeText={setInitialDeposit}
+                        placeholder="Enter initial balance"
+                        keyboardType="number-pad"
+                        style={styles.input}
+                      />
+                    </View>
+                  </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>
-          Select Customer
-        </Text>
+                  <View style={styles.buttonRow}>
+                    <Pressable style={styles.backBtn} onPress={() => setStep(1)}>
+                      <Text style={styles.backBtnText}>Back</Text>
+                    </Pressable>
+                    <Pressable style={[styles.nextBtn, { flex: 1 }]} onPress={() => setStep(3)}>
+                      <Text style={styles.nextBtnText}>Next</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
 
-        {isLoadingCustomers ? (
-          <View style={styles.loading}>
-            <ActivityIndicator />
-            <Text style={styles.mutedText}>
-              Loading customers...
-            </Text>
+              {step === 3 && (
+                <>
+                  <Text style={styles.reviewHeading}>Review Account Opening</Text>
+
+                  <View style={styles.reviewBox}>
+                    <View style={styles.reviewRow}>
+                      <Text style={styles.reviewLabel}>Customer</Text>
+                      <Text style={styles.reviewVal}>
+                        {selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName} (${selectedCustomer.customerNumber})` : ""}
+                      </Text>
+                    </View>
+                    <View style={styles.divider} />
+
+                    <View style={styles.reviewRow}>
+                      <Text style={styles.reviewLabel}>Account Type</Text>
+                      <Text style={styles.reviewVal}>{accountType === "SAVINGS" ? "Savings Account" : "Current Account"}</Text>
+                    </View>
+                    <View style={styles.divider} />
+
+                    <View style={styles.reviewRow}>
+                      <Text style={styles.reviewLabel}>Initial Deposit</Text>
+                      <Text style={styles.reviewValBold}>₹{parseFloat(initialDeposit || "0").toLocaleString("en-IN")}.00</Text>
+                    </View>
+                  </View>
+
+                  {error ? (
+                    <View style={styles.errorBox}>
+                      <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                      <Text style={styles.errorText}>{error}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.buttonRow}>
+                    <Pressable style={styles.backBtn} onPress={() => setStep(2)}>
+                      <Text style={styles.backBtnText}>Back</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.nextBtn, { flex: 1 }]}
+                      onPress={handleCreateAccount}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.nextBtnText}>Submit & Open Account</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
-        ) : customers.length === 0 ? (
-          <Text style={styles.mutedText}>
-            No customers available.
-          </Text>
-        ) : (
-          <View style={styles.customerList}>
-            {customers.map((customer) => {
-              const isSelected =
-                selectedCustomer?.id === customer.id;
-
-              return (
-                <Pressable
-                  key={customer.id}
-                  onPress={() =>
-                    setSelectedCustomer(customer)
-                  }
-                  style={[
-                    styles.customerCard,
-                    isSelected &&
-                      styles.selectedCustomerCard,
-                  ]}
-                >
-                  <Text style={styles.customerName}>
-                    {customer.firstName}{" "}
-                    {customer.lastName}
-                  </Text>
-
-                  <Text style={styles.customerNumber}>
-                    Customer No: {customer.customerNumber}
-                  </Text>
-
-                  <Text style={styles.customerContact}>
-                    {customer.mobileNumber}
-                  </Text>
-
-                  <Text style={styles.customerContact}>
-                    {customer.email}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>
-          Account Type
-        </Text>
-
-        <View style={styles.optionRow}>
-          {ACCOUNT_TYPES.map((type) => {
-            const selected = accountType === type;
-
-            return (
-              <Pressable
-                key={type}
-                onPress={() => setAccountType(type)}
-                style={[
-                  styles.option,
-                  selected && styles.selectedOption,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    selected &&
-                      styles.selectedOptionText,
-                  ]}
-                >
-                  {type}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>
-          Currency
-        </Text>
-
-        <TextInput
-          value={currency}
-          onChangeText={setCurrency}
-          placeholder="INR"
-          autoCapitalize="characters"
-          style={styles.input}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>
-          Opening Balance
-        </Text>
-
-        <TextInput
-          value={openingBalance}
-          onChangeText={setOpeningBalance}
-          placeholder="0.00"
-          keyboardType="decimal-pad"
-          style={styles.input}
-        />
-      </View>
-
-      <Pressable
-        onPress={handleCreateAccount}
-        disabled={isCreating || isLoadingCustomers}
-        style={[
-          styles.createButton,
-          (isCreating || isLoadingCustomers) &&
-            styles.disabledButton,
-        ]}
-      >
-        {isCreating ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.createButtonText}>
-            Create Account
-          </Text>
-        )}
-      </Pressable>
-    </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    paddingTop: 56,
-    paddingBottom: 40,
-    backgroundColor: "#F5F7FA",
+    flex: 1,
+    backgroundColor: Colors.background,
   },
-
-  header: {
-    marginBottom: 24,
+  scrollContent: {
+    paddingBottom: 24,
   },
-
-  backButton: {
-    alignSelf: "flex-start",
-    marginBottom: 18,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "#E5E7EB",
+  mainWrapper: {
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
-
-  backButtonText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-
-  eyebrow: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-
-  title: {
-    marginTop: 4,
-    color: "#111827",
-    fontSize: 30,
-    fontWeight: "800",
-  },
-
-  subtitle: {
-    marginTop: 8,
-    color: "#6B7280",
-    fontSize: 15,
-  },
-
-  section: {
-    marginBottom: 22,
-    borderRadius: 10,
-    padding: 18,
+  formCard: {
     backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 16,
   },
-
+  field: {
+    gap: 6,
+  },
   label: {
-    marginBottom: 12,
-    color: "#111827",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-
-  loading: {
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 20,
-  },
-
-  mutedText: {
-    color: "#6B7280",
-    fontSize: 14,
-  },
-
-  customerList: {
-    gap: 10,
-  },
-
-  customerCard: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 14,
-  },
-
-  selectedCustomerCard: {
-    borderColor: "#1D4ED8",
-    borderWidth: 2,
-    backgroundColor: "#EFF6FF",
-  },
-
-  customerName: {
-    color: "#111827",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-
-  customerNumber: {
-    marginTop: 4,
-    color: "#374151",
     fontSize: 13,
-  },
-
-  customerContact: {
-    marginTop: 3,
-    color: "#6B7280",
-    fontSize: 13,
-  },
-
-  optionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-
-  option: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-  },
-
-  selectedOption: {
-    borderColor: "#1D4ED8",
-    backgroundColor: "#EFF6FF",
-  },
-
-  optionText: {
-    color: "#374151",
-    fontSize: 14,
     fontWeight: "700",
+    color: Colors.textPrimary,
   },
-
-  selectedOptionText: {
-    color: "#1D4ED8",
+  customerSelectList: {
+    gap: 8,
   },
-
-  input: {
-    height: 46,
+  customerOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    color: "#111827",
-    fontSize: 15,
+    borderColor: Colors.border,
+    gap: 12,
     backgroundColor: "#FFFFFF",
   },
-
-  createButton: {
+  customerOptionSelected: {
+    borderColor: Colors.actionBlue,
+    backgroundColor: Colors.lightBlue,
+  },
+  radioDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: Colors.actionBlue,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 50,
-    borderRadius: 8,
-    backgroundColor: "#1D4ED8",
   },
-
-  disabledButton: {
-    opacity: 0.6,
+  radioDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.actionBlue,
   },
-
-  createButtonText: {
+  customerOptionName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  customerOptionSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  emptyNotice: {
+    padding: 16,
+    backgroundColor: Colors.lightBlue,
+    borderRadius: 12,
+  },
+  emptyNoticeText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  radioRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  radioBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  radioActive: {
+    backgroundColor: Colors.actionBlue,
+    borderColor: Colors.actionBlue,
+  },
+  radioText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+  },
+  radioTextActive: {
+    color: "#FFFFFF",
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#FFFFFF",
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.actionBlue,
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  nextBtn: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: Colors.actionBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  btnDisabled: {
+    opacity: 0.5,
+  },
+  nextBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
+    fontWeight: "700",
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  backBtn: {
+    width: 90,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.lightBlue,
+  },
+  backBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  reviewHeading: {
+    fontSize: 16,
     fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: 4,
   },
-
-  errorBox: {
-    marginBottom: 18,
-    borderRadius: 8,
-    padding: 14,
-    backgroundColor: "#FEE2E2",
+  reviewBox: {
+    backgroundColor: Colors.lightBlue,
+    borderRadius: 14,
+    padding: 16,
   },
-
-  errorText: {
-    color: "#991B1B",
-    fontSize: 14,
+  reviewRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
   },
-
-  successBox: {
-    marginBottom: 18,
-    borderRadius: 8,
-    padding: 14,
-    backgroundColor: "#DCFCE7",
+  reviewLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
-
-  successText: {
-    color: "#166534",
+  reviewVal: {
     fontSize: 14,
     fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  reviewValBold: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.actionBlue,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+  },
+  errorText: {
+    fontSize: 13,
+    color: Colors.danger,
   },
 });
